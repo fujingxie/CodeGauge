@@ -1,5 +1,17 @@
 # CodeGauge Changelog
 
+## 2026-06-05 - T3 Companion collector
+
+- Added `ccusage` Collector with `CollectOnce` and periodic `Run(ctx, interval)`.
+- Added `CODEGAUGE_CCUSAGE_PATH` config support for environments where nvm-installed binaries are not on PATH.
+- Parsed Claude `ccusage claude blocks --json --recent --offline --token-limit max` into the 5h quota window.
+- Parsed Claude/Codex `ccusage <provider> daily --json --offline` into weekly usage windows.
+- Kept unknown quota fields (`percent_left`, `limit`, `resets_at`) null when `ccusage` does not expose them.
+- Added unit tests for JSON parsing, Store writes, unavailable providers, and collector scheduling.
+- Added a skipped-by-default real `ccusage` integration test enabled by `CODEGAUGE_REAL_CCUSAGE_PATH`.
+- Verified `go test ./...` in `companion/`.
+- Verified real `ccusage` collection with the locally installed `ccusage 20.0.6`.
+
 ## 2026-06-05 - T2 Companion SQLite store
 
 - Added SQLite migrations for providers, quota windows, coding sessions, events, device pairings, and settings.

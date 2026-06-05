@@ -8,6 +8,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CODEGAUGE_COLLECT_INTERVAL_SECONDS", "")
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "")
+	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -29,6 +30,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.CriticalThreshold != 95 {
 		t.Fatalf("CriticalThreshold = %d, want 95", cfg.CriticalThreshold)
 	}
+	if cfg.CCUsagePath != "ccusage" {
+		t.Fatalf("CCUsagePath = %q, want ccusage", cfg.CCUsagePath)
+	}
 }
 
 func TestLoadReadsEnvironment(t *testing.T) {
@@ -37,6 +41,7 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("CODEGAUGE_COLLECT_INTERVAL_SECONDS", "30")
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "70")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "90")
+	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "/opt/bin/ccusage")
 
 	cfg, err := Load()
 	if err != nil {
@@ -57,6 +62,9 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	}
 	if cfg.CriticalThreshold != 90 {
 		t.Fatalf("CriticalThreshold = %d, want 90", cfg.CriticalThreshold)
+	}
+	if cfg.CCUsagePath != "/opt/bin/ccusage" {
+		t.Fatalf("CCUsagePath = %q, want /opt/bin/ccusage", cfg.CCUsagePath)
 	}
 }
 

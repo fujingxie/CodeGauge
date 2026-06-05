@@ -12,6 +12,7 @@ type Config struct {
 	CollectIntervalSeconds int
 	WarningThreshold       int
 	CriticalThreshold      int
+	CCUsagePath            string
 }
 
 func Load() (Config, error) {
@@ -21,6 +22,7 @@ func Load() (Config, error) {
 		CollectIntervalSeconds: 60,
 		WarningThreshold:       80,
 		CriticalThreshold:      95,
+		CCUsagePath:            stringWithDefault("CODEGAUGE_CCUSAGE_PATH", "ccusage"),
 	}
 
 	if err := readInt("CODEGAUGE_PORT", &cfg.Port); err != nil {
