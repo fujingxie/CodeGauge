@@ -23,4 +23,17 @@ go test ./...
 curl http://127.0.0.1:8765/api/v1/health
 ```
 
-Next task: T2 - SQLite Store, data models, and migrations.
+## Store
+
+The Store uses pure Go SQLite via `modernc.org/sqlite` and applies embedded migrations on open.
+
+Implemented entities:
+
+- Provider
+- QuotaWindow
+- CodingSession
+- Event
+- DevicePairing
+- Setting
+
+Next task: T3 - Collector using local `ccusage` / CLI output.

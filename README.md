@@ -9,7 +9,7 @@ The implementation follows [CodeGauge-完整方案.md](CodeGauge-完整方案.md
 ```text
 CodeGauge/
   android/app/    Android app
-  companion/      Go companion, pending T1
+  companion/      Go companion
   hooks/          Claude hooks snippets and installer, pending T8
   docs/           Implementation notes and plans
 ```

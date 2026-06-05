@@ -1,5 +1,16 @@
 # CodeGauge Changelog
 
+## 2026-06-05 - T2 Companion SQLite store
+
+- Added SQLite migrations for providers, quota windows, coding sessions, events, device pairings, and settings.
+- Added Store models and constants matching the implementation plan.
+- Added Store read/write APIs for all T2 entities.
+- Added event listing with newest-first ordering and limit support.
+- Added quota window upsert keyed by provider and window type.
+- Added persistence tests covering reopen behavior.
+- Added `modernc.org/sqlite` as the pure Go SQLite driver.
+- Verified `go test ./...` in `companion/`.
+
 ## 2026-06-05 - T1 Companion skeleton
 
 - Added `companion/go.mod`.

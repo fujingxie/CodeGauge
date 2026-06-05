@@ -6,6 +6,8 @@ Last updated: 2026-06-05
 
 - T1: Companion Go 骨架可启动。
 - T1: `GET /api/v1/health` 返回 `{ok:true,version}`。
+- T2: Companion SQLite Store、数据模型和 migrations 已实现。
+- T2: Store 支持 Provider、QuotaWindow、CodingSession、Event、DevicePairing、Settings 的基础读写。
 
 ## 进行中 / 待处理项
 
@@ -15,7 +17,8 @@ Last updated: 2026-06-05
 - T0: `./gradlew :android:app:testDebugUnitTest` 通过。
 - T1: `go test ./...` 通过。
 - T1: 使用临时端口 `18765` 验证 `GET /api/v1/health` 通过。
-- T2: SQLite Store + 数据模型 + migrations 待实现。
+- T2: `go test ./...` 通过，覆盖 6 类实体和重启持久化。
+- T3: Collector 待实现；需先确认本机 `ccusage --help` 和实际 JSON 输出。
 - T4 前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -25,6 +28,7 @@ Last updated: 2026-06-05
 - 前台服务、通知、NSD、Glance 仅完成基础声明，尚未实现业务逻辑。
 - `ccusage`/CLI 输出字段必须在 T3 按本机实际输出确认，不能预设字段名。
 - 本机 `8765` 端口当前已有 `python3.1` 进程监听；T1 验收改用 `CODEGAUGE_PORT=18765`，默认配置仍保持 `8765`。
+- `modernc.org/sqlite` 依赖通过 `GOPROXY=https://goproxy.cn,direct` 拉取；默认 `proxy.golang.org` 在本机网络下超时。
 
 ## 关键架构决策及原因
 
@@ -33,3 +37,5 @@ Last updated: 2026-06-05
 - 包名定为 `com.codegauge`，与产品代号、mDNS 服务名、方案假设保持一致。
 - 先做 T0 地基，不实现业务 UI，避免把结构迁移和设计开发混在一次改动里。
 - Companion T1 不引入第三方依赖；配置先用环境变量覆盖，保持骨架简单可测。
+- Companion Store 使用 `modernc.org/sqlite`，保持纯 Go、无 CGO，符合跨平台单文件目标。
+- SQLite 表字段避免使用 SQL 常见关键字，`QuotaWindow.Limit` 在表内落为 `limit_value`。
