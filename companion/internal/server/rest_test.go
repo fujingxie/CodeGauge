@@ -155,6 +155,64 @@ func TestPairRejectsWrongCode(t *testing.T) {
 	}
 }
 
+func TestClaudeHookUpdatesSessionFromLoopback(t *testing.T) {
+	db := openServerTestStore(t)
+	router := newTestRouterWithStore(t, db)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/hooks/claude",
+		bytes.NewBufferString(`{
+			"session_id":"manual-stop",
+			"hook_event_name":"Stop",
+			"cwd":"/work/codegauge",
+			"transcript_path":"/tmp/manual-stop.jsonl",
+			"last_assistant_message":"done"
+		}`),
+	)
+	req.RemoteAddr = "127.0.0.1:51234"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	session, err := db.GetCodingSession("manual-stop")
+	if err != nil {
+		t.Fatalf("GetCodingSession: %v", err)
+	}
+	if session.ProviderID != store.ProviderClaude || session.State != store.SessionStateDone {
+		t.Fatalf("session = %+v, want claude done", session)
+	}
+
+	events, err := db.ListEvents(10)
+	if err != nil {
+		t.Fatalf("ListEvents: %v", err)
+	}
+	if len(events) != 1 || events[0].Type != store.EventSessionDone {
+		t.Fatalf("events = %+v, want one session_done event", events)
+	}
+}
+
+func TestClaudeHookRejectsNonLoopback(t *testing.T) {
+	router := newTestRouter(t)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/hooks/claude",
+		bytes.NewBufferString(`{"session_id":"remote","hook_event_name":"Stop"}`),
+	)
+	req.RemoteAddr = "192.168.1.20:51234"
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+}
+
 func TestUnknownRouteReturnsNotFound(t *testing.T) {
 	router := newTestRouter(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/missing", nil)

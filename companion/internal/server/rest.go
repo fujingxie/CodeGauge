@@ -6,18 +6,25 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/xiexiansheng/codegauge/companion/internal/hooks"
 	"github.com/xiexiansheng/codegauge/companion/internal/store"
 )
 
 type Store interface {
+	UpsertProvider(provider store.Provider) error
 	ListProviders() ([]store.Provider, error)
 	ListQuotaWindows(providerID string) ([]store.QuotaWindow, error)
+	UpsertCodingSession(session store.CodingSession) error
+	GetCodingSession(id string) (store.CodingSession, error)
 	ListCodingSessions() ([]store.CodingSession, error)
+	AddEvent(event store.Event) (int64, error)
 	UpsertDevicePairing(device store.DevicePairing) error
 	GetDevicePairingByToken(token string) (store.DevicePairing, error)
 }
@@ -131,6 +138,7 @@ func NewRouter(options Options) http.Handler {
 	mux.HandleFunc("/api/v1/pair", router.pair)
 	mux.HandleFunc("/api/v1/status", router.withAuth(router.status))
 	mux.HandleFunc("/api/v1/quota", router.withAuth(router.quota))
+	mux.HandleFunc("/api/v1/hooks/claude", router.claudeHook)
 	return mux
 }
 
@@ -242,6 +250,35 @@ func (r *Router) quota(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func (r *Router) claudeHook(w http.ResponseWriter, req *http.Request) {
+	if !allowMethod(w, req, http.MethodPost) {
+		return
+	}
+	if !isLoopbackRequest(req) {
+		writeError(w, http.StatusForbidden, "hook endpoint only accepts loopback requests")
+		return
+	}
+	if r.store == nil {
+		writeError(w, http.StatusInternalServerError, "store is not configured")
+		return
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid hook body")
+		return
+	}
+
+	receiver := hooks.NewClaudeReceiver(r.store)
+	if err := receiver.Handle(req.Context(), body, r.now().UTC()); err != nil {
+		log.Printf("handle Claude hook: %v", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (r *Router) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if r.store == nil {
@@ -329,6 +366,16 @@ func bearerToken(value string) (string, bool) {
 		return "", false
 	}
 	return token, true
+}
+
+func isLoopbackRequest(req *http.Request) bool {
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		host = req.RemoteAddr
+	}
+
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func allowMethod(w http.ResponseWriter, req *http.Request, method string) bool {

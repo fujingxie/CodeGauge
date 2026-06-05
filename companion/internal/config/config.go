@@ -11,6 +11,7 @@ type Config struct {
 	Host                   string
 	Port                   int
 	CollectIntervalSeconds int
+	WatchIntervalSeconds   int
 	WarningThreshold       int
 	CriticalThreshold      int
 	CCUsagePath            string
@@ -24,6 +25,7 @@ func Load() (Config, error) {
 		Host:                   stringWithDefault("CODEGAUGE_HOST", "0.0.0.0"),
 		Port:                   8765,
 		CollectIntervalSeconds: 60,
+		WatchIntervalSeconds:   10,
 		WarningThreshold:       80,
 		CriticalThreshold:      95,
 		CCUsagePath:            stringWithDefault("CODEGAUGE_CCUSAGE_PATH", "ccusage"),
@@ -36,6 +38,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := readInt("CODEGAUGE_COLLECT_INTERVAL_SECONDS", &cfg.CollectIntervalSeconds); err != nil {
+		return Config{}, err
+	}
+	if err := readInt("CODEGAUGE_WATCH_INTERVAL_SECONDS", &cfg.WatchIntervalSeconds); err != nil {
 		return Config{}, err
 	}
 	if err := readInt("CODEGAUGE_WARNING_THRESHOLD", &cfg.WarningThreshold); err != nil {
@@ -57,6 +62,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.CollectIntervalSeconds < 1 {
 		return fmt.Errorf("CODEGAUGE_COLLECT_INTERVAL_SECONDS must be positive, got %d", cfg.CollectIntervalSeconds)
+	}
+	if cfg.WatchIntervalSeconds < 1 {
+		return fmt.Errorf("CODEGAUGE_WATCH_INTERVAL_SECONDS must be positive, got %d", cfg.WatchIntervalSeconds)
 	}
 	if cfg.WarningThreshold < 0 || cfg.WarningThreshold > 100 {
 		return fmt.Errorf("CODEGAUGE_WARNING_THRESHOLD must be between 0 and 100, got %d", cfg.WarningThreshold)

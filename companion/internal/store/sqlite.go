@@ -231,6 +231,22 @@ func (s *Store) ListCodingSessions() ([]CodingSession, error) {
 	return sessions, nil
 }
 
+func (s *Store) GetCodingSession(id string) (CodingSession, error) {
+	row := s.db.QueryRow(
+		`SELECT id, provider_id, project_path, state, started_at, last_activity_at, last_event_type
+		 FROM coding_sessions
+		 WHERE id = ?`,
+		id,
+	)
+
+	session, err := scanCodingSession(row)
+	if err != nil {
+		return CodingSession{}, fmt.Errorf("get coding session %q: %w", id, err)
+	}
+
+	return session, nil
+}
+
 func (s *Store) AddEvent(event Event) (int64, error) {
 	result, err := s.db.Exec(
 		`INSERT INTO events (provider_id, type, payload, created_at)

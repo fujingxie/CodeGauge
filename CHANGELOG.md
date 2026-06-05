@@ -1,5 +1,19 @@
 # CodeGauge Changelog
 
+## 2026-06-06 - T5 Claude hooks and process watcher
+
+- Added `POST /api/v1/hooks/claude` for local Claude Code hook payloads.
+- Restricted the Claude hook endpoint to loopback requests.
+- Added HookReceiver handling for Claude `SessionStart`, `Notification`, and `Stop`.
+- Stored hook-driven session state and raw hook payload events.
+- Added Store `GetCodingSession` for state-preserving session updates.
+- Added process Watcher for `claude` and `codex` processes with inferred session start/done events.
+- Added `CODEGAUGE_WATCH_INTERVAL_SECONDS` config with a 10-second default.
+- Wired the Watcher into Companion startup.
+- Added unit tests for hook lifecycle handling, loopback endpoint protection, Store session lookup, and watcher inference.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified manually with temporary port `18768`: Claude Stop hook returned `{"ok":true}`, authenticated `/status` showed `claude` session `done`, and Watcher showed current Claude/Codex processes `running`.
+
 ## 2026-06-05 - T4 Companion LAN APIs
 
 - Added authenticated LAN API router for `/api/v1/status` and `/api/v1/quota`.

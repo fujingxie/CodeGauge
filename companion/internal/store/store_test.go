@@ -242,6 +242,37 @@ func TestListProvidersReturnsStableOrder(t *testing.T) {
 	}
 }
 
+func TestGetCodingSessionReturnsStoredSession(t *testing.T) {
+	db := openTestStore(t)
+	now := time.Date(2026, 6, 5, 12, 30, 0, 0, time.UTC)
+
+	if err := db.UpsertProvider(Provider{ID: ProviderClaude, Name: "Claude", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider: %v", err)
+	}
+	if err := db.UpsertCodingSession(CodingSession{
+		ID:             "session-1",
+		ProviderID:     ProviderClaude,
+		ProjectPath:    "/work/codegauge",
+		State:          SessionStateWaiting,
+		StartedAt:      now.Add(-10 * time.Minute),
+		LastActivityAt: now,
+		LastEventType:  EventSessionWaiting,
+	}); err != nil {
+		t.Fatalf("UpsertCodingSession: %v", err)
+	}
+
+	session, err := db.GetCodingSession("session-1")
+	if err != nil {
+		t.Fatalf("GetCodingSession: %v", err)
+	}
+	if session.ID != "session-1" || session.State != SessionStateWaiting || session.ProjectPath != "/work/codegauge" {
+		t.Fatalf("session = %+v, want stored waiting session", session)
+	}
+	if !session.StartedAt.Equal(now.Add(-10 * time.Minute)) {
+		t.Fatalf("StartedAt = %s, want preserved start", session.StartedAt.Format(time.RFC3339))
+	}
+}
+
 func TestGetDevicePairingByToken(t *testing.T) {
 	db := openTestStore(t)
 	now := time.Date(2026, 6, 5, 12, 30, 0, 0, time.UTC)

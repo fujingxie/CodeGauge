@@ -1,6 +1,6 @@
 # CodeGauge Status
 
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
 ## 已上线功能
 
@@ -13,6 +13,9 @@ Last updated: 2026-06-05
 - T4: LanServer 已实现 `/status`、`/quota`、`/health`、`/pair`。
 - T4: `/status` 和 `/quota` 已接入 Bearer Token 鉴权。
 - T4: Companion 启动时会打开 SQLite Store、启动 Collector，并提供 LAN API。
+- T5: Companion 已实现本机 Claude Hook Receiver：`POST /api/v1/hooks/claude`。
+- T5: Claude Hook Receiver 支持 `SessionStart`、`Notification`、`Stop` 并写入会话和事件。
+- T5: Companion 已实现进程 Watcher，可检测 `claude` / `codex` 进程并推断 running/done。
 
 ## 进行中 / 待处理项
 
@@ -27,7 +30,8 @@ Last updated: 2026-06-05
 - T3: 真实 `ccusage` 集成测试通过，命令为 `CODEGAUGE_REAL_CCUSAGE_PATH="$(command -v ccusage)" go test ./internal/collector -run TestRealCCUsageCollectsAtLeastOneWindow -count=1`。
 - T4: `go test ./...` 通过。
 - T4: 手动接口验收通过：`/health` 200、无 token `/status` 401、错误配对码 `/pair` 401、正确配对码 `/pair` 返回 token、token 可访问 `/status` 与 `/quota`。
-- T5: HookReceiver `/hooks/claude` + Watcher 待实现。
+- T5: `go test ./...` 通过。
+- T5: 手动接口验收通过：`/api/v1/hooks/claude` 返回 `{"ok":true}`，`/status` 可看到 Claude session state 为 `done`，Watcher 可看到当前 Claude/Codex 进程为 `running`。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -41,6 +45,8 @@ Last updated: 2026-06-05
 - `ccusage 20.0.6` 不提供 Codex 剩余额度百分比和 reset time；T3 按方案保持这些字段为 `null`，不编造数值。
 - T4 配对码目前由环境变量指定或启动时生成并打印；TTL、尝试次数限制、托盘展示留到 T7/安全硬化。
 - T4 token 当前按数据模型存储在 `device_pairings.token`；后续公开分发前建议改为 token hash 存储。
+- T5 Hook endpoint 当前挂在同一个 HTTP server 上，但只接受 loopback 请求；如果后续主服务需要绑定公网/复杂网卡，应考虑拆分为独立本地 listener。
+- T5 Watcher 通过进程名推断活动状态，无法提供项目路径；真实 Claude hooks 的 session 会提供 `cwd`，优先用于精确展示。
 
 ## 关键架构决策及原因
 
@@ -54,3 +60,5 @@ Last updated: 2026-06-05
 - Collector 使用真实 `ccusage 20.0.6` JSON 结构：Claude `blocks[].totalTokens/endTime/isActive` 和 Claude/Codex `daily[].totalTokens`。
 - Weekly 窗口当前表示最近 7 天 token 使用量，因 `ccusage` 未暴露订阅周额度上限，所以 `percent_left`、`limit`、`resets_at` 保持空。
 - T4 Router 通过 `server.Options` 注入 Store、配对码和生成器，方便 T7 托盘接入和测试固定 token。
+- T5 Claude Hook Receiver 只处理方案要求的 `SessionStart`、`Notification`、`Stop`，其它 Claude Code hook 事件暂时忽略，避免过早扩展事件模型。
+- T5 Watcher 使用可注入 `ProcessLister`，业务行为用 fake lister 测试，真实实现用 `ps`/`tasklist` 读取系统进程。

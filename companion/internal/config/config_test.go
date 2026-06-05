@@ -6,6 +6,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CODEGAUGE_HOST", "")
 	t.Setenv("CODEGAUGE_PORT", "")
 	t.Setenv("CODEGAUGE_COLLECT_INTERVAL_SECONDS", "")
+	t.Setenv("CODEGAUGE_WATCH_INTERVAL_SECONDS", "")
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "")
@@ -26,6 +27,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	}
 	if cfg.CollectIntervalSeconds != 60 {
 		t.Fatalf("CollectIntervalSeconds = %d, want 60", cfg.CollectIntervalSeconds)
+	}
+	if cfg.WatchIntervalSeconds != 10 {
+		t.Fatalf("WatchIntervalSeconds = %d, want 10", cfg.WatchIntervalSeconds)
 	}
 	if cfg.WarningThreshold != 80 {
 		t.Fatalf("WarningThreshold = %d, want 80", cfg.WarningThreshold)
@@ -51,6 +55,7 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("CODEGAUGE_HOST", "127.0.0.1")
 	t.Setenv("CODEGAUGE_PORT", "9001")
 	t.Setenv("CODEGAUGE_COLLECT_INTERVAL_SECONDS", "30")
+	t.Setenv("CODEGAUGE_WATCH_INTERVAL_SECONDS", "5")
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "70")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "90")
 	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "/opt/bin/ccusage")
@@ -71,6 +76,9 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	}
 	if cfg.CollectIntervalSeconds != 30 {
 		t.Fatalf("CollectIntervalSeconds = %d, want 30", cfg.CollectIntervalSeconds)
+	}
+	if cfg.WatchIntervalSeconds != 5 {
+		t.Fatalf("WatchIntervalSeconds = %d, want 5", cfg.WatchIntervalSeconds)
 	}
 	if cfg.WarningThreshold != 70 {
 		t.Fatalf("WarningThreshold = %d, want 70", cfg.WarningThreshold)

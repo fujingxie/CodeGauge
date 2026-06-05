@@ -18,6 +18,7 @@ import (
 	"github.com/xiexiansheng/codegauge/companion/internal/config"
 	"github.com/xiexiansheng/codegauge/companion/internal/server"
 	"github.com/xiexiansheng/codegauge/companion/internal/store"
+	"github.com/xiexiansheng/codegauge/companion/internal/watcher"
 )
 
 const version = "dev"
@@ -63,6 +64,13 @@ func run() error {
 	go func() {
 		if err := quotaCollector.Run(appCtx, time.Duration(cfg.CollectIntervalSeconds)*time.Second); err != nil {
 			log.Printf("collector stopped: %v", err)
+		}
+	}()
+
+	processWatcher := watcher.New(db, watcher.Options{})
+	go func() {
+		if err := processWatcher.Run(appCtx, time.Duration(cfg.WatchIntervalSeconds)*time.Second); err != nil {
+			log.Printf("process watcher stopped: %v", err)
 		}
 	}()
 
