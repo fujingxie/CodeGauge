@@ -19,3 +19,9 @@ CodeGauge/
 ```bash
 ./gradlew :android:app:assembleDebug
 ```
+
+```bash
+cd companion
+go test ./...
+go run ./cmd/codegauge
+```
