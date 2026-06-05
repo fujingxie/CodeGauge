@@ -2,16 +2,22 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/xiexiansheng/codegauge/companion/internal/collector"
 	"github.com/xiexiansheng/codegauge/companion/internal/config"
 	"github.com/xiexiansheng/codegauge/companion/internal/server"
+	"github.com/xiexiansheng/codegauge/companion/internal/store"
 )
 
 const version = "dev"
@@ -29,9 +35,45 @@ func run() error {
 		return err
 	}
 
+	if err := os.MkdirAll(filepath.Dir(cfg.DatabasePath), 0o755); err != nil {
+		return fmt.Errorf("create database directory: %w", err)
+	}
+	db, err := store.Open(cfg.DatabasePath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	pairCode := cfg.PairCode
+	if pairCode == "" {
+		generated, err := generatePairCode()
+		if err != nil {
+			return err
+		}
+		pairCode = generated
+	}
+	log.Printf("CodeGauge pairing code: %s", pairCode)
+
+	appCtx, cancelApp := context.WithCancel(context.Background())
+	defer cancelApp()
+
+	quotaCollector := collector.New(db, collector.Options{
+		CCUsagePath: cfg.CCUsagePath,
+	})
+	go func() {
+		if err := quotaCollector.Run(appCtx, time.Duration(cfg.CollectIntervalSeconds)*time.Second); err != nil {
+			log.Printf("collector stopped: %v", err)
+		}
+	}()
+
 	httpServer := &http.Server{
-		Addr:              cfg.Address(),
-		Handler:           server.NewRouter(version),
+		Addr: cfg.Address(),
+		Handler: server.NewRouter(server.Options{
+			Version:    version,
+			ServerName: cfg.ServerName,
+			PairCode:   pairCode,
+			Store:      db,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -50,11 +92,21 @@ func run() error {
 
 	select {
 	case err := <-errs:
+		cancelApp()
 		return err
 	case <-stop:
 		log.Print("CodeGauge companion shutting down")
+		cancelApp()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return httpServer.Shutdown(ctx)
 	}
+}
+
+func generatePairCode() (string, error) {
+	value, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	if err != nil {
+		return "", fmt.Errorf("generate pair code: %w", err)
+	}
+	return fmt.Sprintf("%06d", value.Int64()), nil
 }

@@ -10,6 +10,9 @@ Last updated: 2026-06-05
 - T2: Store 支持 Provider、QuotaWindow、CodingSession、Event、DevicePairing、Settings 的基础读写。
 - T3: Companion Collector 可通过 `ccusage` 采集 Claude/Codex 用量并写入 Store。
 - T3: Collector 支持 `CollectOnce` 和周期 `Run(ctx, interval)`。
+- T4: LanServer 已实现 `/status`、`/quota`、`/health`、`/pair`。
+- T4: `/status` 和 `/quota` 已接入 Bearer Token 鉴权。
+- T4: Companion 启动时会打开 SQLite Store、启动 Collector，并提供 LAN API。
 
 ## 进行中 / 待处理项
 
@@ -22,8 +25,10 @@ Last updated: 2026-06-05
 - T2: `go test ./...` 通过，覆盖 6 类实体和重启持久化。
 - T3: `go test ./...` 通过。
 - T3: 真实 `ccusage` 集成测试通过，命令为 `CODEGAUGE_REAL_CCUSAGE_PATH="$(command -v ccusage)" go test ./internal/collector -run TestRealCCUsageCollectsAtLeastOneWindow -count=1`。
-- T4: LanServer `/status` `/quota` `/health` + Bearer 鉴权 + `/pair` 待实现。
-- T4 前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
+- T4: `go test ./...` 通过。
+- T4: 手动接口验收通过：`/health` 200、无 token `/status` 401、错误配对码 `/pair` 401、正确配对码 `/pair` 返回 token、token 可访问 `/status` 与 `/quota`。
+- T5: HookReceiver `/hooks/claude` + Watcher 待实现。
+- 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
 
@@ -34,6 +39,8 @@ Last updated: 2026-06-05
 - `modernc.org/sqlite` 依赖通过 `GOPROXY=https://goproxy.cn,direct` 拉取；默认 `proxy.golang.org` 在本机网络下超时。
 - Codex shell 的 PATH 可能看不到 nvm/.local 安装目录；运行 Companion 时如找不到 `ccusage`，需要设置 `CODEGAUGE_CCUSAGE_PATH` 为 `command -v ccusage` 的结果。
 - `ccusage 20.0.6` 不提供 Codex 剩余额度百分比和 reset time；T3 按方案保持这些字段为 `null`，不编造数值。
+- T4 配对码目前由环境变量指定或启动时生成并打印；TTL、尝试次数限制、托盘展示留到 T7/安全硬化。
+- T4 token 当前按数据模型存储在 `device_pairings.token`；后续公开分发前建议改为 token hash 存储。
 
 ## 关键架构决策及原因
 
@@ -46,3 +53,4 @@ Last updated: 2026-06-05
 - SQLite 表字段避免使用 SQL 常见关键字，`QuotaWindow.Limit` 在表内落为 `limit_value`。
 - Collector 使用真实 `ccusage 20.0.6` JSON 结构：Claude `blocks[].totalTokens/endTime/isActive` 和 Claude/Codex `daily[].totalTokens`。
 - Weekly 窗口当前表示最近 7 天 token 使用量，因 `ccusage` 未暴露订阅周额度上限，所以 `percent_left`、`limit`、`resets_at` 保持空。
+- T4 Router 通过 `server.Options` 注入 Store、配对码和生成器，方便 T7 托盘接入和测试固定 token。

@@ -92,6 +92,34 @@ func (s *Store) GetProvider(id string) (Provider, error) {
 	return provider, nil
 }
 
+func (s *Store) ListProviders() ([]Provider, error) {
+	rows, err := s.db.Query(
+		`SELECT id, name, plan_tier, available
+		 FROM providers
+		 ORDER BY id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list providers: %w", err)
+	}
+	defer rows.Close()
+
+	var providers []Provider
+	for rows.Next() {
+		var provider Provider
+		var available int
+		if err := rows.Scan(&provider.ID, &provider.Name, &provider.PlanTier, &available); err != nil {
+			return nil, fmt.Errorf("scan provider: %w", err)
+		}
+		provider.Available = available != 0
+		providers = append(providers, provider)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate providers: %w", err)
+	}
+
+	return providers, nil
+}
+
 func (s *Store) UpsertQuotaWindow(window QuotaWindow) error {
 	_, err := s.db.Exec(
 		`INSERT INTO quota_windows (
@@ -289,6 +317,22 @@ func (s *Store) GetDevicePairing(deviceID string) (DevicePairing, error) {
 	device, err := scanDevicePairing(row)
 	if err != nil {
 		return DevicePairing{}, fmt.Errorf("get device pairing %q: %w", deviceID, err)
+	}
+
+	return device, nil
+}
+
+func (s *Store) GetDevicePairingByToken(token string) (DevicePairing, error) {
+	row := s.db.QueryRow(
+		`SELECT device_id, name, token, paired_at, last_seen_at
+		 FROM device_pairings
+		 WHERE token = ?`,
+		token,
+	)
+
+	device, err := scanDevicePairing(row)
+	if err != nil {
+		return DevicePairing{}, fmt.Errorf("get device pairing by token: %w", err)
 	}
 
 	return device, nil

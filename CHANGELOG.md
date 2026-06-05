@@ -1,5 +1,18 @@
 # CodeGauge Changelog
 
+## 2026-06-05 - T4 Companion LAN APIs
+
+- Added authenticated LAN API router for `/api/v1/status` and `/api/v1/quota`.
+- Kept `/api/v1/health` unauthenticated.
+- Added `/api/v1/pair` with pair-code validation and token issuance.
+- Added random 6-digit pair code generation when `CODEGAUGE_PAIR_CODE` is not set.
+- Added `CODEGAUGE_DB_PATH`, `CODEGAUGE_PAIR_CODE`, and `CODEGAUGE_SERVER_NAME` config values.
+- Wired Companion startup to open SQLite Store, start Collector, and serve API routes.
+- Added Store queries for listing providers and looking up device pairings by token.
+- Added server tests for auth, pairing, status, quota, and health behavior.
+- Verified `go test ./...` in `companion/`.
+- Verified manually with temporary port `18766`: health, unauthorized status, wrong pair code, correct pairing, authenticated status, and authenticated quota.
+
 ## 2026-06-05 - T3 Companion collector
 
 - Added `ccusage` Collector with `CollectOnce` and periodic `Run(ctx, interval)`.

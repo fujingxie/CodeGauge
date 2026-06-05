@@ -220,6 +220,51 @@ func TestQuotaWindowUpsertReplacesExistingWindow(t *testing.T) {
 	}
 }
 
+func TestListProvidersReturnsStableOrder(t *testing.T) {
+	db := openTestStore(t)
+
+	if err := db.UpsertProvider(Provider{ID: ProviderCodex, Name: "Codex", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider codex: %v", err)
+	}
+	if err := db.UpsertProvider(Provider{ID: ProviderClaude, Name: "Claude", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider claude: %v", err)
+	}
+
+	providers, err := db.ListProviders()
+	if err != nil {
+		t.Fatalf("ListProviders: %v", err)
+	}
+	if len(providers) != 2 {
+		t.Fatalf("providers length = %d, want 2", len(providers))
+	}
+	if providers[0].ID != ProviderClaude || providers[1].ID != ProviderCodex {
+		t.Fatalf("provider order = %q, %q; want claude, codex", providers[0].ID, providers[1].ID)
+	}
+}
+
+func TestGetDevicePairingByToken(t *testing.T) {
+	db := openTestStore(t)
+	now := time.Date(2026, 6, 5, 12, 30, 0, 0, time.UTC)
+
+	if err := db.UpsertDevicePairing(DevicePairing{
+		DeviceID:   "phone-1",
+		Name:       "Pixel",
+		Token:      "token-1",
+		PairedAt:   now,
+		LastSeenAt: now,
+	}); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+
+	device, err := db.GetDevicePairingByToken("token-1")
+	if err != nil {
+		t.Fatalf("GetDevicePairingByToken: %v", err)
+	}
+	if device.DeviceID != "phone-1" || device.Name != "Pixel" {
+		t.Fatalf("device = %+v, want phone-1 Pixel", device)
+	}
+}
+
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
 

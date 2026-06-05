@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -13,6 +14,9 @@ type Config struct {
 	WarningThreshold       int
 	CriticalThreshold      int
 	CCUsagePath            string
+	DatabasePath           string
+	PairCode               string
+	ServerName             string
 }
 
 func Load() (Config, error) {
@@ -23,6 +27,9 @@ func Load() (Config, error) {
 		WarningThreshold:       80,
 		CriticalThreshold:      95,
 		CCUsagePath:            stringWithDefault("CODEGAUGE_CCUSAGE_PATH", "ccusage"),
+		DatabasePath:           stringWithDefault("CODEGAUGE_DB_PATH", defaultDatabasePath()),
+		PairCode:               os.Getenv("CODEGAUGE_PAIR_CODE"),
+		ServerName:             stringWithDefault("CODEGAUGE_SERVER_NAME", "CodeGauge Companion"),
 	}
 
 	if err := readInt("CODEGAUGE_PORT", &cfg.Port); err != nil {
@@ -60,6 +67,9 @@ func (cfg Config) Validate() error {
 	if cfg.WarningThreshold >= cfg.CriticalThreshold {
 		return fmt.Errorf("CODEGAUGE_WARNING_THRESHOLD must be lower than CODEGAUGE_CRITICAL_THRESHOLD")
 	}
+	if cfg.PairCode != "" && !isSixDigitCode(cfg.PairCode) {
+		return fmt.Errorf("CODEGAUGE_PAIR_CODE must be 6 digits")
+	}
 
 	return nil
 }
@@ -90,4 +100,24 @@ func readInt(name string, target *int) error {
 
 	*target = parsed
 	return nil
+}
+
+func defaultDatabasePath() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil || configDir == "" {
+		return "codegauge.db"
+	}
+	return filepath.Join(configDir, "CodeGauge", "codegauge.db")
+}
+
+func isSixDigitCode(value string) bool {
+	if len(value) != 6 {
+		return false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }

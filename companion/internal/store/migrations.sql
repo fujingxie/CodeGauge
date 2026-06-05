@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS device_pairings (
   last_seen_at TEXT NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_device_pairings_token ON device_pairings (token);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

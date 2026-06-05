@@ -9,6 +9,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "")
+	t.Setenv("CODEGAUGE_DB_PATH", "")
+	t.Setenv("CODEGAUGE_PAIR_CODE", "")
+	t.Setenv("CODEGAUGE_SERVER_NAME", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -33,6 +36,15 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.CCUsagePath != "ccusage" {
 		t.Fatalf("CCUsagePath = %q, want ccusage", cfg.CCUsagePath)
 	}
+	if cfg.DatabasePath == "" {
+		t.Fatal("DatabasePath is empty, want default path")
+	}
+	if cfg.PairCode != "" {
+		t.Fatalf("PairCode = %q, want empty default", cfg.PairCode)
+	}
+	if cfg.ServerName != "CodeGauge Companion" {
+		t.Fatalf("ServerName = %q, want CodeGauge Companion", cfg.ServerName)
+	}
 }
 
 func TestLoadReadsEnvironment(t *testing.T) {
@@ -42,6 +54,9 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "70")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "90")
 	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "/opt/bin/ccusage")
+	t.Setenv("CODEGAUGE_DB_PATH", "/tmp/codegauge.db")
+	t.Setenv("CODEGAUGE_PAIR_CODE", "481920")
+	t.Setenv("CODEGAUGE_SERVER_NAME", "Dev Mac")
 
 	cfg, err := Load()
 	if err != nil {
@@ -66,6 +81,15 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	if cfg.CCUsagePath != "/opt/bin/ccusage" {
 		t.Fatalf("CCUsagePath = %q, want /opt/bin/ccusage", cfg.CCUsagePath)
 	}
+	if cfg.DatabasePath != "/tmp/codegauge.db" {
+		t.Fatalf("DatabasePath = %q, want /tmp/codegauge.db", cfg.DatabasePath)
+	}
+	if cfg.PairCode != "481920" {
+		t.Fatalf("PairCode = %q, want 481920", cfg.PairCode)
+	}
+	if cfg.ServerName != "Dev Mac" {
+		t.Fatalf("ServerName = %q, want Dev Mac", cfg.ServerName)
+	}
 }
 
 func TestLoadRejectsInvalidPort(t *testing.T) {
@@ -74,5 +98,14 @@ func TestLoadRejectsInvalidPort(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Fatal("Load returned nil error for invalid port")
+	}
+}
+
+func TestLoadRejectsInvalidPairCode(t *testing.T) {
+	t.Setenv("CODEGAUGE_PAIR_CODE", "abc123")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load returned nil error for invalid pair code")
 	}
 }
