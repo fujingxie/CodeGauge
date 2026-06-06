@@ -1,5 +1,16 @@
 # CodeGauge Changelog
 
+## 2026-06-06 - T6 WebSocket stream
+
+- Added authenticated `GET /api/v1/stream` WebSocket endpoint.
+- Added `internal/stream` Hub for broadcasting incremental messages.
+- Added `NotifyingStore` wrapper to publish `quota_update`, `session_update`, and `alert` messages from Store writes.
+- Wired Collector, Watcher, and Claude Hook handling through the shared notifying Store.
+- Added warning/critical threshold crossing detection for quota window updates.
+- Added `github.com/gorilla/websocket` dependency.
+- Added tests for WebSocket auth, real WS handshake, hook-driven `session_update`, quota updates, and threshold alerts.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+
 ## 2026-06-06 - T5 Claude hooks and process watcher
 
 - Added `POST /api/v1/hooks/claude` for local Claude Code hook payloads.

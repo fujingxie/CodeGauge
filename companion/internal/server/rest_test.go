@@ -3,13 +3,17 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/xiexiansheng/codegauge/companion/internal/store"
+	"github.com/xiexiansheng/codegauge/companion/internal/stream"
 )
 
 func TestHealthReturnsStatusWithoutAuth(t *testing.T) {
@@ -213,6 +217,99 @@ func TestClaudeHookRejectsNonLoopback(t *testing.T) {
 	}
 }
 
+func TestStreamRequiresBearerToken(t *testing.T) {
+	server := httptest.NewServer(newTestRouter(t))
+	defer server.Close()
+
+	_, response, err := websocket.DefaultDialer.Dial(webSocketURL(server.URL, "/api/v1/stream"), nil)
+	if err == nil {
+		t.Fatal("Dial error = nil, want unauthorized handshake failure")
+	}
+	if response == nil {
+		t.Fatal("response = nil, want HTTP response")
+	}
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestStreamReceivesSessionUpdateFromClaudeHook(t *testing.T) {
+	db := openServerTestStore(t)
+	hub := stream.NewHub()
+	notifyingStore := stream.NewNotifyingStore(db, hub, stream.Options{
+		WarningThreshold:  80,
+		CriticalThreshold: 95,
+	})
+	if err := notifyingStore.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", testNow())); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+
+	server := httptest.NewServer(newTestRouterWithOptions(t, Options{
+		Version:        "test-version",
+		ServerName:     "CodeGauge Test",
+		PairCode:       "123456",
+		Store:          notifyingStore,
+		Now:            testNow,
+		StreamHub:      hub,
+		TokenGenerator: func() (string, error) { return "token-test", nil },
+		DeviceIDGenerator: func() (string, error) {
+			return "device-test", nil
+		},
+	}))
+	defer server.Close()
+
+	header := http.Header{}
+	header.Set("Authorization", "Bearer token-test")
+	conn, response, err := websocket.DefaultDialer.Dial(webSocketURL(server.URL, "/api/v1/stream"), header)
+	if err != nil {
+		status := 0
+		if response != nil {
+			status = response.StatusCode
+		}
+		t.Fatalf("Dial status=%d error=%v", status, err)
+	}
+	defer conn.Close()
+
+	hookResponse, err := http.Post(
+		server.URL+"/api/v1/hooks/claude",
+		"application/json",
+		bytes.NewBufferString(`{
+			"session_id":"manual-stop",
+			"hook_event_name":"Stop",
+			"cwd":"/work/codegauge",
+			"transcript_path":"/tmp/manual-stop.jsonl",
+			"last_assistant_message":"done"
+		}`),
+	)
+	if err != nil {
+		t.Fatalf("POST hook: %v", err)
+	}
+	defer hookResponse.Body.Close()
+	if hookResponse.StatusCode != http.StatusOK {
+		t.Fatalf("hook status = %d, want %d", hookResponse.StatusCode, http.StatusOK)
+	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var message struct {
+		EventType string         `json:"event_type"`
+		Data      map[string]any `json:"data"`
+	}
+	if err := conn.ReadJSON(&message); err != nil {
+		t.Fatalf("ReadJSON: %v", err)
+	}
+	if message.EventType != stream.EventTypeSessionUpdate {
+		t.Fatalf("event_type = %q, want %q", message.EventType, stream.EventTypeSessionUpdate)
+	}
+	if message.Data["provider_id"] != store.ProviderClaude {
+		t.Fatalf("provider_id = %v, want claude", message.Data["provider_id"])
+	}
+	if message.Data["project_path"] != "/work/codegauge" || message.Data["state"] != store.SessionStateDone {
+		t.Fatalf("data = %+v, want /work/codegauge done", message.Data)
+	}
+}
+
 func TestUnknownRouteReturnsNotFound(t *testing.T) {
 	router := newTestRouter(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/missing", nil)
@@ -232,7 +329,7 @@ func newTestRouter(t *testing.T) http.Handler {
 
 func newTestRouterWithStore(t *testing.T, db *store.Store) http.Handler {
 	t.Helper()
-	return NewRouter(Options{
+	return newTestRouterWithOptions(t, Options{
 		Version:        "test-version",
 		ServerName:     "CodeGauge Test",
 		PairCode:       "123456",
@@ -243,6 +340,11 @@ func newTestRouterWithStore(t *testing.T, db *store.Store) http.Handler {
 			return "device-test", nil
 		},
 	})
+}
+
+func newTestRouterWithOptions(t *testing.T, options Options) http.Handler {
+	t.Helper()
+	return NewRouter(options)
 }
 
 func openServerTestStore(t *testing.T) *store.Store {
@@ -315,4 +417,8 @@ func decodeJSON(t *testing.T, rec *httptest.ResponseRecorder, target any) {
 	if err := json.NewDecoder(rec.Body).Decode(target); err != nil {
 		t.Fatalf("decode response %q: %v", rec.Body.String(), err)
 	}
+}
+
+func webSocketURL(serverURL string, path string) string {
+	return fmt.Sprintf("ws%s%s", strings.TrimPrefix(serverURL, "http"), path)
 }

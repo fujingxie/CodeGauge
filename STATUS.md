@@ -16,6 +16,8 @@ Last updated: 2026-06-06
 - T5: Companion 已实现本机 Claude Hook Receiver：`POST /api/v1/hooks/claude`。
 - T5: Claude Hook Receiver 支持 `SessionStart`、`Notification`、`Stop` 并写入会话和事件。
 - T5: Companion 已实现进程 Watcher，可检测 `claude` / `codex` 进程并推断 running/done。
+- T6: Companion 已实现鉴权 WebSocket：`GET /api/v1/stream`。
+- T6: WebSocket 可推送 `quota_update`、`session_update`、`alert` 增量消息。
 
 ## 进行中 / 待处理项
 
@@ -32,6 +34,7 @@ Last updated: 2026-06-06
 - T4: 手动接口验收通过：`/health` 200、无 token `/status` 401、错误配对码 `/pair` 401、正确配对码 `/pair` 返回 token、token 可访问 `/status` 与 `/quota`。
 - T5: `go test ./...` 通过。
 - T5: 手动接口验收通过：`/api/v1/hooks/claude` 返回 `{"ok":true}`，`/status` 可看到 Claude session state 为 `done`，Watcher 可看到当前 Claude/Codex 进程为 `running`。
+- T6: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 通过，覆盖真实 WS 握手、Hook 触发 session_update、quota_update 和阈值 alert。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -47,6 +50,8 @@ Last updated: 2026-06-06
 - T4 token 当前按数据模型存储在 `device_pairings.token`；后续公开分发前建议改为 token hash 存储。
 - T5 Hook endpoint 当前挂在同一个 HTTP server 上，但只接受 loopback 请求；如果后续主服务需要绑定公网/复杂网卡，应考虑拆分为独立本地 listener。
 - T5 Watcher 通过进程名推断活动状态，无法提供项目路径；真实 Claude hooks 的 session 会提供 `cwd`，优先用于精确展示。
+- T6 WebSocket 当前采用内存 Hub；服务重启后客户端需重连并通过 `/status` 拉取新快照。
+- T6 alert 只在单进程内比较上一条 quota window 后推送；历史去重和跨重启阈值抑制留到通知模块处理。
 
 ## 关键架构决策及原因
 
@@ -62,3 +67,5 @@ Last updated: 2026-06-06
 - T4 Router 通过 `server.Options` 注入 Store、配对码和生成器，方便 T7 托盘接入和测试固定 token。
 - T5 Claude Hook Receiver 只处理方案要求的 `SessionStart`、`Notification`、`Stop`，其它 Claude Code hook 事件暂时忽略，避免过早扩展事件模型。
 - T5 Watcher 使用可注入 `ProcessLister`，业务行为用 fake lister 测试，真实实现用 `ps`/`tasklist` 读取系统进程。
+- T6 使用 `internal/stream.NotifyingStore` 包装 SQLite Store，把 Collector/Watcher/Hook 的写入统一转换为 WebSocket 增量消息，避免在各调用方重复推送逻辑。
+- T6 WebSocket 使用 `github.com/gorilla/websocket`，保持 server 代码简洁并覆盖真实握手测试。

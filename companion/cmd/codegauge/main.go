@@ -18,6 +18,7 @@ import (
 	"github.com/xiexiansheng/codegauge/companion/internal/config"
 	"github.com/xiexiansheng/codegauge/companion/internal/server"
 	"github.com/xiexiansheng/codegauge/companion/internal/store"
+	codestream "github.com/xiexiansheng/codegauge/companion/internal/stream"
 	"github.com/xiexiansheng/codegauge/companion/internal/watcher"
 )
 
@@ -58,7 +59,13 @@ func run() error {
 	appCtx, cancelApp := context.WithCancel(context.Background())
 	defer cancelApp()
 
-	quotaCollector := collector.New(db, collector.Options{
+	streamHub := codestream.NewHub()
+	notifyingStore := codestream.NewNotifyingStore(db, streamHub, codestream.Options{
+		WarningThreshold:  cfg.WarningThreshold,
+		CriticalThreshold: cfg.CriticalThreshold,
+	})
+
+	quotaCollector := collector.New(notifyingStore, collector.Options{
 		CCUsagePath: cfg.CCUsagePath,
 	})
 	go func() {
@@ -67,7 +74,7 @@ func run() error {
 		}
 	}()
 
-	processWatcher := watcher.New(db, watcher.Options{})
+	processWatcher := watcher.New(notifyingStore, watcher.Options{})
 	go func() {
 		if err := processWatcher.Run(appCtx, time.Duration(cfg.WatchIntervalSeconds)*time.Second); err != nil {
 			log.Printf("process watcher stopped: %v", err)
@@ -80,7 +87,8 @@ func run() error {
 			Version:    version,
 			ServerName: cfg.ServerName,
 			PairCode:   pairCode,
-			Store:      db,
+			Store:      notifyingStore,
+			StreamHub:  streamHub,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

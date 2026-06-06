@@ -13,8 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/xiexiansheng/codegauge/companion/internal/hooks"
 	"github.com/xiexiansheng/codegauge/companion/internal/store"
+	codestream "github.com/xiexiansheng/codegauge/companion/internal/stream"
 )
 
 type Store interface {
@@ -37,6 +39,7 @@ type Options struct {
 	PairCode          string
 	Store             Store
 	Now               func() time.Time
+	StreamHub         *codestream.Hub
 	TokenGenerator    TokenGenerator
 	DeviceIDGenerator TokenGenerator
 }
@@ -47,6 +50,7 @@ type Router struct {
 	pairCode          string
 	store             Store
 	now               func() time.Time
+	streamHub         *codestream.Hub
 	tokenGenerator    TokenGenerator
 	deviceIDGenerator TokenGenerator
 }
@@ -112,11 +116,15 @@ func NewRouter(options Options) http.Handler {
 		pairCode:          options.PairCode,
 		store:             options.Store,
 		now:               options.Now,
+		streamHub:         options.StreamHub,
 		tokenGenerator:    options.TokenGenerator,
 		deviceIDGenerator: options.DeviceIDGenerator,
 	}
 	if router.now == nil {
 		router.now = time.Now
+	}
+	if router.streamHub == nil {
+		router.streamHub = codestream.NewHub()
 	}
 	if router.tokenGenerator == nil {
 		router.tokenGenerator = func() (string, error) {
@@ -138,6 +146,7 @@ func NewRouter(options Options) http.Handler {
 	mux.HandleFunc("/api/v1/pair", router.pair)
 	mux.HandleFunc("/api/v1/status", router.withAuth(router.status))
 	mux.HandleFunc("/api/v1/quota", router.withAuth(router.quota))
+	mux.HandleFunc("/api/v1/stream", router.withAuth(router.stream))
 	mux.HandleFunc("/api/v1/hooks/claude", router.claudeHook)
 	return mux
 }
@@ -277,6 +286,39 @@ func (r *Router) claudeHook(w http.ResponseWriter, req *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (r *Router) stream(w http.ResponseWriter, req *http.Request) {
+	if !allowMethod(w, req, http.MethodGet) {
+		return
+	}
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(*http.Request) bool {
+			return true
+		},
+	}
+	conn, err := upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		log.Printf("upgrade stream websocket: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	subscription := r.streamHub.Subscribe()
+	defer subscription.Close()
+
+	for {
+		select {
+		case <-req.Context().Done():
+			return
+		case message := <-subscription.Messages():
+			if err := conn.WriteJSON(message); err != nil {
+				log.Printf("write stream message: %v", err)
+				return
+			}
+		}
+	}
 }
 
 func (r *Router) withAuth(next http.HandlerFunc) http.HandlerFunc {
