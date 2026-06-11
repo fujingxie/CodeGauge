@@ -18,6 +18,7 @@ type Config struct {
 	DatabasePath           string
 	PairCode               string
 	ServerName             string
+	TrayEnabled            bool
 }
 
 func Load() (Config, error) {
@@ -32,6 +33,7 @@ func Load() (Config, error) {
 		DatabasePath:           stringWithDefault("CODEGAUGE_DB_PATH", defaultDatabasePath()),
 		PairCode:               os.Getenv("CODEGAUGE_PAIR_CODE"),
 		ServerName:             stringWithDefault("CODEGAUGE_SERVER_NAME", "CodeGauge Companion"),
+		TrayEnabled:            true,
 	}
 
 	if err := readInt("CODEGAUGE_PORT", &cfg.Port); err != nil {
@@ -47,6 +49,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := readInt("CODEGAUGE_CRITICAL_THRESHOLD", &cfg.CriticalThreshold); err != nil {
+		return Config{}, err
+	}
+	if err := readBool("CODEGAUGE_TRAY_ENABLED", &cfg.TrayEnabled); err != nil {
 		return Config{}, err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -104,6 +109,21 @@ func readInt(name string, target *int) error {
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		return fmt.Errorf("%s must be an integer, got %q: %w", name, value, err)
+	}
+
+	*target = parsed
+	return nil
+}
+
+func readBool(name string, target *bool) error {
+	value := os.Getenv(name)
+	if value == "" {
+		return nil
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fmt.Errorf("%s must be a boolean, got %q: %w", name, value, err)
 	}
 
 	*target = parsed

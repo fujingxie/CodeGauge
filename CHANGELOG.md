@@ -1,5 +1,19 @@
 # CodeGauge Changelog
 
+## 2026-06-11 - T7 mDNS and tray
+
+- Added mDNS advertising for `_codegauge._tcp.local.` with version, host, port, and server name TXT records.
+- Added `internal/discovery` with testable advertiser lifecycle.
+- Added desktop tray controller showing status, listening address, pairing code, version, and Quit.
+- Added `internal/tray` systray adapter and lifecycle tests.
+- Wired mDNS and tray startup into Companion main.
+- Added `CODEGAUGE_TRAY_ENABLED=false` for CLI/manual test runs without a GUI tray.
+- Fixed tray Quit so clicking it also exits the systray event loop, not only background workers.
+- Added `fyne.io/systray` and `github.com/grandcat/zeroconf` dependencies; upgraded transitive DNS/net dependencies for Go 1.25 compatibility.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified manually with `dns-sd -B _codegauge._tcp local`.
+- Verified manually that the tray menu shows the pairing code and Quit exits the process.
+
 ## 2026-06-06 - T6 WebSocket stream
 
 - Added authenticated `GET /api/v1/stream` WebSocket endpoint.

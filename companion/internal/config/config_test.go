@@ -13,6 +13,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CODEGAUGE_DB_PATH", "")
 	t.Setenv("CODEGAUGE_PAIR_CODE", "")
 	t.Setenv("CODEGAUGE_SERVER_NAME", "")
+	t.Setenv("CODEGAUGE_TRAY_ENABLED", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -49,6 +50,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.ServerName != "CodeGauge Companion" {
 		t.Fatalf("ServerName = %q, want CodeGauge Companion", cfg.ServerName)
 	}
+	if !cfg.TrayEnabled {
+		t.Fatal("TrayEnabled = false, want true")
+	}
 }
 
 func TestLoadReadsEnvironment(t *testing.T) {
@@ -62,6 +66,7 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("CODEGAUGE_DB_PATH", "/tmp/codegauge.db")
 	t.Setenv("CODEGAUGE_PAIR_CODE", "481920")
 	t.Setenv("CODEGAUGE_SERVER_NAME", "Dev Mac")
+	t.Setenv("CODEGAUGE_TRAY_ENABLED", "false")
 
 	cfg, err := Load()
 	if err != nil {
@@ -98,6 +103,9 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	if cfg.ServerName != "Dev Mac" {
 		t.Fatalf("ServerName = %q, want Dev Mac", cfg.ServerName)
 	}
+	if cfg.TrayEnabled {
+		t.Fatal("TrayEnabled = true, want false")
+	}
 }
 
 func TestLoadRejectsInvalidPort(t *testing.T) {
@@ -115,5 +123,14 @@ func TestLoadRejectsInvalidPairCode(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Fatal("Load returned nil error for invalid pair code")
+	}
+}
+
+func TestLoadRejectsInvalidTrayEnabled(t *testing.T) {
+	t.Setenv("CODEGAUGE_TRAY_ENABLED", "sometimes")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load returned nil error for invalid tray setting")
 	}
 }

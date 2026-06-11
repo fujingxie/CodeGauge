@@ -1,6 +1,6 @@
 # CodeGauge Status
 
-Last updated: 2026-06-06
+Last updated: 2026-06-11
 
 ## 已上线功能
 
@@ -18,6 +18,8 @@ Last updated: 2026-06-06
 - T5: Companion 已实现进程 Watcher，可检测 `claude` / `codex` 进程并推断 running/done。
 - T6: Companion 已实现鉴权 WebSocket：`GET /api/v1/stream`。
 - T6: WebSocket 可推送 `quota_update`、`session_update`、`alert` 增量消息。
+- T7: Companion 已实现 mDNS 广播 `_codegauge._tcp.local.`。
+- T7: Companion 已实现 macOS/桌面托盘菜单，显示运行状态、监听地址、配对码、版本和退出入口。
 
 ## 进行中 / 待处理项
 
@@ -35,6 +37,9 @@ Last updated: 2026-06-06
 - T5: `go test ./...` 通过。
 - T5: 手动接口验收通过：`/api/v1/hooks/claude` 返回 `{"ok":true}`，`/status` 可看到 Claude session state 为 `done`，Watcher 可看到当前 Claude/Codex 进程为 `running`。
 - T6: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 通过，覆盖真实 WS 握手、Hook 触发 session_update、quota_update 和阈值 alert。
+- T7: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 通过。
+- T7: 手动 mDNS 验收通过：`dns-sd -B _codegauge._tcp local` 可发现 `CodeGauge Companion`。
+- T7: 手动托盘验收通过：菜单可见 `Status: Running`、监听地址、配对码、版本和 `Quit`；修复后点击 `Quit` 会结束托盘事件循环并退出进程。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -52,6 +57,8 @@ Last updated: 2026-06-06
 - T5 Watcher 通过进程名推断活动状态，无法提供项目路径；真实 Claude hooks 的 session 会提供 `cwd`，优先用于精确展示。
 - T6 WebSocket 当前采用内存 Hub；服务重启后客户端需重连并通过 `/status` 拉取新快照。
 - T6 alert 只在单进程内比较上一条 quota window 后推送；历史去重和跨重启阈值抑制留到通知模块处理。
+- T7 托盘依赖 `fyne.io/systray`，构建桌面托盘版本需要 CGO；无 GUI/自动测试环境可用 `CODEGAUGE_TRAY_ENABLED=false` 启动纯后台服务。
+- T7 mDNS 依赖局域网和系统 Bonjour/mDNS 环境；自动测试只覆盖注册参数和生命周期，真实发现仍需 `dns-sd` 或 Android NSD 手动验收。
 
 ## 关键架构决策及原因
 
@@ -69,3 +76,5 @@ Last updated: 2026-06-06
 - T5 Watcher 使用可注入 `ProcessLister`，业务行为用 fake lister 测试，真实实现用 `ps`/`tasklist` 读取系统进程。
 - T6 使用 `internal/stream.NotifyingStore` 包装 SQLite Store，把 Collector/Watcher/Hook 的写入统一转换为 WebSocket 增量消息，避免在各调用方重复推送逻辑。
 - T6 WebSocket 使用 `github.com/gorilla/websocket`，保持 server 代码简洁并覆盖真实握手测试。
+- T7 mDNS 广播通过 `internal/discovery.Advertiser` 封装，便于用 fake registrar 测试注册参数和 shutdown。
+- T7 托盘通过 `internal/tray.Controller` 封装菜单模型，真实 `systray.Run` 保持在 main goroutine，避免 macOS 托盘事件循环异常。
