@@ -1,5 +1,16 @@
 # CodeGauge Changelog
 
+## 2026-06-11 - T8 Claude hooks installer
+
+- Added `hooks/claude-settings.snippet.json` for Claude Code `SessionStart`, `Notification`, and `Stop` events.
+- Added `hooks/install-hooks.sh` to install CodeGauge hooks into Claude settings.
+- Added `hooks/merge-claude-settings.mjs` for safe JSON merging, backup creation, custom hook URL support, and idempotent installs.
+- Used a command hook for `SessionStart` because Claude Code currently limits `SessionStart` to command/MCP hooks.
+- Added Node tests covering new settings creation, existing settings preservation, idempotency, and custom hook URLs.
+- Verified `node --test hooks/merge-claude-settings.test.mjs`.
+- Verified `hooks/install-hooks.sh` against a temporary settings file.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+
 ## 2026-06-11 - T7 mDNS and tray
 
 - Added mDNS advertising for `_codegauge._tcp.local.` with version, host, port, and server name TXT records.

@@ -20,6 +20,8 @@ Last updated: 2026-06-11
 - T6: WebSocket 可推送 `quota_update`、`session_update`、`alert` 增量消息。
 - T7: Companion 已实现 mDNS 广播 `_codegauge._tcp.local.`。
 - T7: Companion 已实现 macOS/桌面托盘菜单，显示运行状态、监听地址、配对码、版本和退出入口。
+- T8: 已提供 Claude Code hooks 配置片段和安全安装脚本。
+- T8: 安装脚本会保留已有 Claude settings、写入前备份，并可重复运行不重复插入。
 
 ## 进行中 / 待处理项
 
@@ -40,6 +42,9 @@ Last updated: 2026-06-11
 - T7: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 通过。
 - T7: 手动 mDNS 验收通过：`dns-sd -B _codegauge._tcp local` 可发现 `CodeGauge Companion`。
 - T7: 手动托盘验收通过：菜单可见 `Status: Running`、监听地址、配对码、版本和 `Quit`；修复后点击 `Quit` 会结束托盘事件循环并退出进程。
+- T8: `node --test hooks/merge-claude-settings.test.mjs` 通过。
+- T8: `hooks/install-hooks.sh` 临时 settings dry run 通过，验证自定义 hook URL 和 `SessionStart` command hook。
+- T8: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 通过。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -59,6 +64,8 @@ Last updated: 2026-06-11
 - T6 alert 只在单进程内比较上一条 quota window 后推送；历史去重和跨重启阈值抑制留到通知模块处理。
 - T7 托盘依赖 `fyne.io/systray`，构建桌面托盘版本需要 CGO；无 GUI/自动测试环境可用 `CODEGAUGE_TRAY_ENABLED=false` 启动纯后台服务。
 - T7 mDNS 依赖局域网和系统 Bonjour/mDNS 环境；自动测试只覆盖注册参数和生命周期，真实发现仍需 `dns-sd` 或 Android NSD 手动验收。
+- T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
+- T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
 
 ## 关键架构决策及原因
 
@@ -78,3 +85,4 @@ Last updated: 2026-06-11
 - T6 WebSocket 使用 `github.com/gorilla/websocket`，保持 server 代码简洁并覆盖真实握手测试。
 - T7 mDNS 广播通过 `internal/discovery.Advertiser` 封装，便于用 fake registrar 测试注册参数和 shutdown。
 - T7 托盘通过 `internal/tray.Controller` 封装菜单模型，真实 `systray.Run` 保持在 main goroutine，避免 macOS 托盘事件循环异常。
+- T8 JSON 合并逻辑放在 `hooks/merge-claude-settings.mjs`，`install-hooks.sh` 只负责定位 settings/snippet 并调用 Node，便于测试和避免 shell 里手写 JSON 合并。

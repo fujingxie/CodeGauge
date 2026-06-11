@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -fsS --max-time 2 -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:8765/api/v1/hooks/claude >/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:8765/api/v1/hooks/claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:8765/api/v1/hooks/claude",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
