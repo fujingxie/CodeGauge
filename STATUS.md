@@ -24,6 +24,7 @@ Last updated: 2026-06-11
 - T8: 安装脚本会保留已有 Claude settings、写入前备份，并可重复运行不重复插入。
 - T9: Android 已实现 Companion 配对页，支持 NSD 自动发现、手动 `IP:Port`、配对码提交和已配对状态展示。
 - T9: Android 配对 token 已通过加密 SharedPreferences 持久化，重启 App 后保持已配对。
+- T10: Android 已实现仪表盘首页，配对后可拉取 `/status` 并展示连接状态、Claude/Codex 额度卡、数据来源、reset 倒计时和当前会话摘要。
 
 ## 进行中 / 待处理项
 
@@ -50,6 +51,9 @@ Last updated: 2026-06-11
 - T9: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖手动 endpoint 解析和配对仓库行为。
 - T9: `./gradlew :android:app:assembleDebug` 通过。
 - T9: 手机手动验收通过：Android App 可自动发现 `CodeGauge Companion`，也可用 `192.168.1.4:18770` 手动配对；强杀并重启 App 后直接显示 `Paired`。
+- T10: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖 `/status` JSON 解析、nullable quota 字段和展示文案格式化。
+- T10: `./gradlew :android:app:assembleDebug` 通过。
+- T10: 手机手动验收通过：首页显示 Claude/Codex 卡、`Source: ccusage`、token 用量、Claude 5h reset 倒计时、当前 Codex running session；`ccusage` 未提供的剩余百分比正确显示 `Unknown`。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -93,3 +97,5 @@ Last updated: 2026-06-11
 - T8 JSON 合并逻辑放在 `hooks/merge-claude-settings.mjs`，`install-hooks.sh` 只负责定位 settings/snippet 并调用 Node，便于测试和避免 shell 里手写 JSON 合并。
 - T9 Android 网络层先使用 OkHttp + `org.json`，避免在早期工程里引入 Ktor/serialization 插件；API 面扩大后再统一抽 client。
 - T9 Android 配对状态通过 `PairingRepository` + `PairingStore` 注入，生产使用 `EncryptedSharedPreferences`，测试使用内存 store。
+- T10 Android 仪表盘先用 REST `/status` 全量快照和手动刷新；WebSocket 实时更新留到 T12 前台服务统一处理。
+- T10 对 `percent_left`、`limit`、`resets_at` 的 `null` 值不做推断，UI 显示 `Unknown` 或 `Reset time unknown`，避免编造 quota。

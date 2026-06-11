@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,16 +37,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.pairing.CompanionDiscovery
 import com.codegauge.pairing.CompanionEndpoint
 import com.codegauge.pairing.PairingRecord
 import com.codegauge.pairing.PairingRepository
 import com.codegauge.pairing.parseManualEndpoint
+import com.codegauge.ui.dashboard.DashboardRoute
 import kotlinx.coroutines.launch
 
 @Composable
 fun PairingRoute(
     repository: PairingRepository,
+    dashboardRepository: DashboardRepository,
     discovery: CompanionDiscovery,
     deviceName: String,
 ) {
@@ -66,11 +68,14 @@ fun PairingRoute(
         isLoading = false
     }
 
-    DisposableEffect(discovery) {
-        discovery.start { endpoints ->
-            discoveredEndpoints = endpoints
-            if (selectedEndpoint == null && endpoints.isNotEmpty()) {
-                selectedEndpoint = endpoints.first()
+    val shouldDiscover = savedPairing == null
+    DisposableEffect(discovery, shouldDiscover) {
+        if (shouldDiscover) {
+            discovery.start { endpoints ->
+                discoveredEndpoints = endpoints
+                if (selectedEndpoint == null && endpoints.isNotEmpty()) {
+                    selectedEndpoint = endpoints.first()
+                }
             }
         }
         onDispose {
@@ -82,29 +87,27 @@ fun PairingRoute(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Header()
-
-            when {
-                isLoading -> LoadingPanel()
-                savedPairing != null -> PairedPanel(
-                    record = savedPairing!!,
-                    onClear = {
-                        scope.launch {
-                            repository.clearPairing()
-                            savedPairing = null
-                            pairCode = ""
-                            errorMessage = null
-                        }
-                    },
-                )
-                else -> PairingPanel(
+        val currentPairing = savedPairing
+        when {
+            isLoading -> PairingPageContainer {
+                Header()
+                LoadingPanel()
+            }
+            currentPairing != null -> DashboardRoute(
+                pairing = currentPairing,
+                repository = dashboardRepository,
+                onClearPairing = {
+                    scope.launch {
+                        repository.clearPairing()
+                        savedPairing = null
+                        pairCode = ""
+                        errorMessage = null
+                    }
+                },
+            )
+            else -> PairingPageContainer {
+                Header()
+                PairingPanel(
                     endpoints = discoveredEndpoints,
                     selectedEndpoint = selectedEndpoint,
                     manualAddress = manualAddress,
@@ -166,6 +169,18 @@ fun PairingRoute(
 }
 
 @Composable
+private fun PairingPageContainer(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        content = content,
+    )
+}
+
+@Composable
 private fun Header() {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -175,7 +190,7 @@ private fun Header() {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Pair this Android device with your local Companion.",
+            text = "Local AI usage dashboard.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -191,39 +206,6 @@ private fun LoadingPanel() {
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun PairedPanel(
-    record: PairingRecord,
-    onClear: () -> Unit,
-) {
-    Panel {
-        Text(
-            text = "Paired",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = record.serverName,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = record.serverUrl,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onClear,
-        ) {
-            Text("Pair another Companion")
-        }
     }
 }
 

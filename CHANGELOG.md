@@ -1,5 +1,16 @@
 # CodeGauge Changelog
 
+## 2026-06-11 - T10 Android dashboard
+
+- Added Android dashboard models, `/status` parser, authenticated OkHttp client, and dashboard repository.
+- Added the paired dashboard screen with connection status, pull-to-refresh, manual refresh, pair-again, Claude/Codex quota cards, source labels, reset text, and current session summary.
+- Preserved nullable quota fields without inventing remaining percentages or reset times.
+- Added tests for `/status` JSON parsing and dashboard formatting.
+- Added Compose Material pull-refresh and JVM `org.json` test dependency.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+- Verified manually on phone: dashboard showed Claude/Codex cards, `Source: ccusage`, token usage, Claude 5h reset countdown, and Codex running session.
+
 ## 2026-06-11 - T9 Android pairing
 
 - Replaced the placeholder Compose shell with an Android pairing screen.
