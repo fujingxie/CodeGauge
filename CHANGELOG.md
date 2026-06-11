@@ -1,5 +1,17 @@
 # CodeGauge Changelog
 
+## 2026-06-11 - T9 Android pairing
+
+- Replaced the placeholder Compose shell with an Android pairing screen.
+- Added Android NSD discovery for `_codegauge._tcp.` and retained manual `IP:Port` pairing fallback.
+- Added OkHttp pairing client for `POST /api/v1/pair`.
+- Added encrypted pairing storage so the Companion token survives app restarts.
+- Added pairing repository and parser tests for endpoint parsing, successful pairing persistence, and invalid pair code rejection.
+- Added Android dependencies for Security Crypto, OkHttp, and coroutines.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+- Verified manually on phone: App discovered `CodeGauge Companion`, manual `192.168.1.4:18770` pairing worked, and reopening the App still showed `Paired`.
+
 ## 2026-06-11 - T8 Claude hooks installer
 
 - Added `hooks/claude-settings.snippet.json` for Claude Code `SessionStart`, `Notification`, and `Stop` events.

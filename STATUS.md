@@ -22,6 +22,8 @@ Last updated: 2026-06-11
 - T7: Companion 已实现 macOS/桌面托盘菜单，显示运行状态、监听地址、配对码、版本和退出入口。
 - T8: 已提供 Claude Code hooks 配置片段和安全安装脚本。
 - T8: 安装脚本会保留已有 Claude settings、写入前备份，并可重复运行不重复插入。
+- T9: Android 已实现 Companion 配对页，支持 NSD 自动发现、手动 `IP:Port`、配对码提交和已配对状态展示。
+- T9: Android 配对 token 已通过加密 SharedPreferences 持久化，重启 App 后保持已配对。
 
 ## 进行中 / 待处理项
 
@@ -45,13 +47,16 @@ Last updated: 2026-06-11
 - T8: `node --test hooks/merge-claude-settings.test.mjs` 通过。
 - T8: `hooks/install-hooks.sh` 临时 settings dry run 通过，验证自定义 hook URL 和 `SessionStart` command hook。
 - T8: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 通过。
+- T9: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖手动 endpoint 解析和配对仓库行为。
+- T9: `./gradlew :android:app:assembleDebug` 通过。
+- T9: 手机手动验收通过：Android App 可自动发现 `CodeGauge Companion`，也可用 `192.168.1.4:18770` 手动配对；强杀并重启 App 后直接显示 `Paired`。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
 
 - `compileSdk`/`targetSdk` 已设为 36；当前本机缓存只有 Android Gradle Plugin 8.1.3，已临时加 `android.suppressUnsupportedCompileSdk=36`。
 - LAN HTTP 需要明文流量，当前网络安全配置允许 cleartext；后续若支持固定 host 或本地 TLS，应收紧。
-- 前台服务、通知、NSD、Glance 仅完成基础声明，尚未实现业务逻辑。
+- 前台服务、通知、Glance 仅完成基础声明，尚未实现业务逻辑。
 - 本机 `8765` 端口当前已有 `python3.1` 进程监听；T1 验收改用 `CODEGAUGE_PORT=18765`，默认配置仍保持 `8765`。
 - `modernc.org/sqlite` 依赖通过 `GOPROXY=https://goproxy.cn,direct` 拉取；默认 `proxy.golang.org` 在本机网络下超时。
 - Codex shell 的 PATH 可能看不到 nvm/.local 安装目录；运行 Companion 时如找不到 `ccusage`，需要设置 `CODEGAUGE_CCUSAGE_PATH` 为 `command -v ccusage` 的结果。
@@ -63,7 +68,7 @@ Last updated: 2026-06-11
 - T6 WebSocket 当前采用内存 Hub；服务重启后客户端需重连并通过 `/status` 拉取新快照。
 - T6 alert 只在单进程内比较上一条 quota window 后推送；历史去重和跨重启阈值抑制留到通知模块处理。
 - T7 托盘依赖 `fyne.io/systray`，构建桌面托盘版本需要 CGO；无 GUI/自动测试环境可用 `CODEGAUGE_TRAY_ENABLED=false` 启动纯后台服务。
-- T7 mDNS 依赖局域网和系统 Bonjour/mDNS 环境；自动测试只覆盖注册参数和生命周期，真实发现仍需 `dns-sd` 或 Android NSD 手动验收。
+- T7/T9 mDNS 和 Android NSD 依赖局域网、系统 Bonjour/mDNS 环境和路由器组播支持；已通过 `dns-sd` 和手机 App 手动验收，后续仍需保留手动回归。
 - T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
 
@@ -86,3 +91,5 @@ Last updated: 2026-06-11
 - T7 mDNS 广播通过 `internal/discovery.Advertiser` 封装，便于用 fake registrar 测试注册参数和 shutdown。
 - T7 托盘通过 `internal/tray.Controller` 封装菜单模型，真实 `systray.Run` 保持在 main goroutine，避免 macOS 托盘事件循环异常。
 - T8 JSON 合并逻辑放在 `hooks/merge-claude-settings.mjs`，`install-hooks.sh` 只负责定位 settings/snippet 并调用 Node，便于测试和避免 shell 里手写 JSON 合并。
+- T9 Android 网络层先使用 OkHttp + `org.json`，避免在早期工程里引入 Ktor/serialization 插件；API 面扩大后再统一抽 client。
+- T9 Android 配对状态通过 `PairingRepository` + `PairingStore` 注入，生产使用 `EncryptedSharedPreferences`，测试使用内存 store。
