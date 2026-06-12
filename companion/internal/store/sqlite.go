@@ -338,6 +338,32 @@ func (s *Store) GetDevicePairing(deviceID string) (DevicePairing, error) {
 	return device, nil
 }
 
+func (s *Store) ListDevicePairings() ([]DevicePairing, error) {
+	rows, err := s.db.Query(
+		`SELECT device_id, name, token, paired_at, last_seen_at
+		 FROM device_pairings
+		 ORDER BY last_seen_at DESC, paired_at DESC, device_id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list device pairings: %w", err)
+	}
+	defer rows.Close()
+
+	var devices []DevicePairing
+	for rows.Next() {
+		device, err := scanDevicePairing(rows)
+		if err != nil {
+			return nil, err
+		}
+		devices = append(devices, device)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate device pairings: %w", err)
+	}
+
+	return devices, nil
+}
+
 func (s *Store) GetDevicePairingByToken(token string) (DevicePairing, error) {
 	row := s.db.QueryRow(
 		`SELECT device_id, name, token, paired_at, last_seen_at
@@ -380,6 +406,32 @@ func (s *Store) GetSetting(key string) (Setting, error) {
 	}
 
 	return setting, nil
+}
+
+func (s *Store) ListSettings() ([]Setting, error) {
+	rows, err := s.db.Query(
+		`SELECT key, value
+		 FROM settings
+		 ORDER BY key ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list settings: %w", err)
+	}
+	defer rows.Close()
+
+	var settings []Setting
+	for rows.Next() {
+		setting, err := scanSetting(rows)
+		if err != nil {
+			return nil, err
+		}
+		settings = append(settings, setting)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate settings: %w", err)
+	}
+
+	return settings, nil
 }
 
 type scanner interface {
@@ -524,6 +576,14 @@ func scanDevicePairing(row scanner) (DevicePairing, error) {
 	device.LastSeenAt = parsedLastSeenAt
 
 	return device, nil
+}
+
+func scanSetting(row scanner) (Setting, error) {
+	var setting Setting
+	if err := row.Scan(&setting.Key, &setting.Value); err != nil {
+		return Setting{}, fmt.Errorf("scan setting: %w", err)
+	}
+	return setting, nil
 }
 
 func boolToInt(value bool) int {

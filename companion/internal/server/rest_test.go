@@ -198,6 +198,193 @@ func TestEventsRequiresBearerToken(t *testing.T) {
 	}
 }
 
+func TestSettingsReadsDefaultsAndPersistsUpdates(t *testing.T) {
+	db := openServerTestStore(t)
+	if err := db.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", testNow())); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+	router := newTestRouterWithOptions(t, Options{
+		Version:    "test-version",
+		ServerName: "CodeGauge Test",
+		PairCode:  "123456",
+		Store:     db,
+		Now:       testNow,
+		SettingsDefaults: SettingsDefaults{
+			CollectIntervalSeconds: 30,
+			WarningThreshold:       75,
+			CriticalThreshold:      90,
+		},
+		TokenGenerator: func() (string, error) { return "token-test", nil },
+		DeviceIDGenerator: func() (string, error) {
+			return "device-test", nil
+		},
+	})
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil)
+	getReq.Header.Set("Authorization", "Bearer token-test")
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("get status = %d, want %d; body=%s", getRec.Code, http.StatusOK, getRec.Body.String())
+	}
+	var defaults SettingsResponse
+	decodeJSON(t, getRec, &defaults)
+	if defaults.Settings.WarningThreshold != 75 || defaults.Settings.CriticalThreshold != 90 {
+		t.Fatalf("default thresholds = %d/%d, want 75/90", defaults.Settings.WarningThreshold, defaults.Settings.CriticalThreshold)
+	}
+	if defaults.Settings.CollectIntervalSeconds != 30 {
+		t.Fatalf("default collect interval = %d, want 30", defaults.Settings.CollectIntervalSeconds)
+	}
+	if !defaults.Settings.NotificationsEnabled || !defaults.Settings.TaskDoneNotifications {
+		t.Fatalf("default notifications = %+v, want enabled", defaults.Settings)
+	}
+
+	patchReq := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/settings",
+		bytes.NewBufferString(`{
+			"settings":{
+				"warning_threshold":70,
+				"critical_threshold":92,
+				"notifications_enabled":false,
+				"collect_interval_seconds":45
+			}
+		}`),
+	)
+	patchReq.Header.Set("Authorization", "Bearer token-test")
+	patchRec := httptest.NewRecorder()
+	router.ServeHTTP(patchRec, patchReq)
+
+	if patchRec.Code != http.StatusOK {
+		t.Fatalf("patch status = %d, want %d; body=%s", patchRec.Code, http.StatusOK, patchRec.Body.String())
+	}
+	var updated SettingsResponse
+	decodeJSON(t, patchRec, &updated)
+	if updated.Settings.WarningThreshold != 70 || updated.Settings.CriticalThreshold != 92 {
+		t.Fatalf("updated thresholds = %d/%d, want 70/92", updated.Settings.WarningThreshold, updated.Settings.CriticalThreshold)
+	}
+	if updated.Settings.NotificationsEnabled {
+		t.Fatal("NotificationsEnabled = true, want false")
+	}
+	if updated.Settings.CollectIntervalSeconds != 45 {
+		t.Fatalf("CollectIntervalSeconds = %d, want 45", updated.Settings.CollectIntervalSeconds)
+	}
+
+	setting, err := db.GetSetting("warning_threshold")
+	if err != nil {
+		t.Fatalf("GetSetting warning_threshold: %v", err)
+	}
+	if setting.Value != "70" {
+		t.Fatalf("stored warning_threshold = %q, want 70", setting.Value)
+	}
+}
+
+func TestSettingsRejectsInvalidThresholds(t *testing.T) {
+	db := openServerTestStore(t)
+	if err := db.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", testNow())); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+	router := newTestRouterWithStore(t, db)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/settings",
+		bytes.NewBufferString(`{"settings":{"warning_threshold":95,"critical_threshold":90}}`),
+	)
+	req.Header.Set("Authorization", "Bearer token-test")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestDevicesUsesBearerTokenAndDoesNotExposeTokens(t *testing.T) {
+	db := openServerTestStore(t)
+	now := testNow()
+	if err := db.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", now.Add(-time.Hour))); err != nil {
+		t.Fatalf("UpsertDevicePairing phone-1: %v", err)
+	}
+	if err := db.UpsertDevicePairing(DevicePairing("phone-2", "Tablet", "token-tablet", now)); err != nil {
+		t.Fatalf("UpsertDevicePairing phone-2: %v", err)
+	}
+	router := newTestRouterWithStore(t, db)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices", nil)
+	req.Header.Set("Authorization", "Bearer token-test")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "token-test") || strings.Contains(rec.Body.String(), "token-tablet") {
+		t.Fatalf("response exposes token: %s", rec.Body.String())
+	}
+
+	var body DevicesResponse
+	decodeJSON(t, rec, &body)
+	if len(body.Devices) != 2 {
+		t.Fatalf("devices length = %d, want 2", len(body.Devices))
+	}
+	if body.Devices[0].DeviceID != "phone-2" || body.Devices[1].DeviceID != "phone-1" {
+		t.Fatalf("device order = %q, %q; want latest first", body.Devices[0].DeviceID, body.Devices[1].DeviceID)
+	}
+}
+
+func TestDiagnosticsSummarizesCompanionState(t *testing.T) {
+	db := openServerTestStore(t)
+	seedStatusData(t, db)
+	if err := db.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", testNow())); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+	providerID := store.ProviderClaude
+	if _, err := db.AddEvent(store.Event{
+		ProviderID: &providerID,
+		Type:       store.EventSessionStart,
+		Payload:    `{"session_id":"session-1"}`,
+		CreatedAt:  testNow().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("AddEvent: %v", err)
+	}
+	router := newTestRouterWithStore(t, db)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/diagnostics", nil)
+	req.Header.Set("Authorization", "Bearer token-test")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body DiagnosticsResponse
+	decodeJSON(t, rec, &body)
+	if !body.OK {
+		t.Fatal("OK = false, want true")
+	}
+	if body.ServerName != "CodeGauge Test" || body.Version != "test-version" {
+		t.Fatalf("server identity = %q/%q, want CodeGauge Test/test-version", body.ServerName, body.Version)
+	}
+	if body.ProviderCount != 1 || body.AvailableProviderCount != 1 {
+		t.Fatalf("provider counts = %d/%d, want 1/1", body.ProviderCount, body.AvailableProviderCount)
+	}
+	if body.RunningSessionCount != 1 {
+		t.Fatalf("RunningSessionCount = %d, want 1", body.RunningSessionCount)
+	}
+	if body.PairedDeviceCount != 1 {
+		t.Fatalf("PairedDeviceCount = %d, want 1", body.PairedDeviceCount)
+	}
+	if body.LatestEventAt == nil || !body.LatestEventAt.Equal(testNow().Add(time.Minute)) {
+		t.Fatalf("LatestEventAt = %v, want latest event time", body.LatestEventAt)
+	}
+}
+
 func TestPairRejectsWrongCode(t *testing.T) {
 	router := newTestRouter(t)
 	req := httptest.NewRequest(

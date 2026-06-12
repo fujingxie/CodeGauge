@@ -17,7 +17,10 @@ type Store interface {
 	AddEvent(event store.Event) (int64, error)
 	ListEvents(limit int) ([]store.Event, error)
 	UpsertDevicePairing(device store.DevicePairing) error
+	ListDevicePairings() ([]store.DevicePairing, error)
 	GetDevicePairingByToken(token string) (store.DevicePairing, error)
+	SetSetting(key string, value string) error
+	ListSettings() ([]store.Setting, error)
 }
 
 type Options struct {
@@ -153,8 +156,20 @@ func (s *NotifyingStore) UpsertDevicePairing(device store.DevicePairing) error {
 	return s.inner.UpsertDevicePairing(device)
 }
 
+func (s *NotifyingStore) ListDevicePairings() ([]store.DevicePairing, error) {
+	return s.inner.ListDevicePairings()
+}
+
 func (s *NotifyingStore) GetDevicePairingByToken(token string) (store.DevicePairing, error) {
 	return s.inner.GetDevicePairingByToken(token)
+}
+
+func (s *NotifyingStore) SetSetting(key string, value string) error {
+	return s.inner.SetSetting(key, value)
+}
+
+func (s *NotifyingStore) ListSettings() ([]store.Setting, error) {
+	return s.inner.ListSettings()
 }
 
 func (s *NotifyingStore) previousQuotaWindow(providerID string, windowType string) (*store.QuotaWindow, error) {

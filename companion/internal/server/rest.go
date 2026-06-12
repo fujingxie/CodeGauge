@@ -30,7 +30,10 @@ type Store interface {
 	AddEvent(event store.Event) (int64, error)
 	ListEvents(limit int) ([]store.Event, error)
 	UpsertDevicePairing(device store.DevicePairing) error
+	ListDevicePairings() ([]store.DevicePairing, error)
 	GetDevicePairingByToken(token string) (store.DevicePairing, error)
+	SetSetting(key string, value string) error
+	ListSettings() ([]store.Setting, error)
 }
 
 type TokenGenerator func() (string, error)
@@ -42,6 +45,7 @@ type Options struct {
 	Store             Store
 	Now               func() time.Time
 	StreamHub         *codestream.Hub
+	SettingsDefaults  SettingsDefaults
 	TokenGenerator    TokenGenerator
 	DeviceIDGenerator TokenGenerator
 }
@@ -53,6 +57,7 @@ type Router struct {
 	store             Store
 	now               func() time.Time
 	streamHub         *codestream.Hub
+	settingsDefaults  SettingsDefaults
 	tokenGenerator    TokenGenerator
 	deviceIDGenerator TokenGenerator
 }
@@ -74,6 +79,62 @@ type QuotaResponse struct {
 
 type EventsResponse struct {
 	Events []EventResponse `json:"events"`
+}
+
+type SettingsDefaults struct {
+	CollectIntervalSeconds int
+	WarningThreshold       int
+	CriticalThreshold      int
+}
+
+type SettingsResponse struct {
+	Settings AppSettings `json:"settings"`
+}
+
+type AppSettings struct {
+	NotificationsEnabled    bool `json:"notifications_enabled"`
+	WarningThreshold        int  `json:"warning_threshold"`
+	CriticalThreshold       int  `json:"critical_threshold"`
+	QuotaResetNotifications bool `json:"quota_reset_notifications"`
+	TaskDoneNotifications   bool `json:"task_done_notifications"`
+	CollectIntervalSeconds  int  `json:"collect_interval_seconds"`
+}
+
+type SettingsPatchRequest struct {
+	Settings SettingsPatch `json:"settings"`
+}
+
+type SettingsPatch struct {
+	NotificationsEnabled    *bool `json:"notifications_enabled"`
+	WarningThreshold        *int  `json:"warning_threshold"`
+	CriticalThreshold       *int  `json:"critical_threshold"`
+	QuotaResetNotifications *bool `json:"quota_reset_notifications"`
+	TaskDoneNotifications   *bool `json:"task_done_notifications"`
+	CollectIntervalSeconds  *int  `json:"collect_interval_seconds"`
+}
+
+type DevicesResponse struct {
+	Devices []DeviceResponse `json:"devices"`
+}
+
+type DeviceResponse struct {
+	DeviceID   string    `json:"device_id"`
+	Name       string    `json:"name"`
+	PairedAt   time.Time `json:"paired_at"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+type DiagnosticsResponse struct {
+	OK                     bool       `json:"ok"`
+	ServerName             string     `json:"server_name"`
+	Version                string     `json:"version"`
+	ServerTime             time.Time  `json:"server_time"`
+	ProviderCount          int        `json:"provider_count"`
+	AvailableProviderCount int        `json:"available_provider_count"`
+	RunningSessionCount    int        `json:"running_session_count"`
+	WaitingSessionCount    int        `json:"waiting_session_count"`
+	PairedDeviceCount      int        `json:"paired_device_count"`
+	LatestEventAt          *time.Time `json:"latest_event_at"`
 }
 
 type ProviderResponse struct {
@@ -123,6 +184,15 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+const (
+	settingNotificationsEnabled    = "notifications_enabled"
+	settingWarningThreshold        = "warning_threshold"
+	settingCriticalThreshold       = "critical_threshold"
+	settingQuotaResetNotifications = "quota_reset_notifications"
+	settingTaskDoneNotifications   = "task_done_notifications"
+	settingCollectIntervalSeconds  = "collect_interval_seconds"
+)
+
 func NewRouter(options Options) http.Handler {
 	router := &Router{
 		version:           withDefault(options.Version, "dev"),
@@ -131,6 +201,7 @@ func NewRouter(options Options) http.Handler {
 		store:             options.Store,
 		now:               options.Now,
 		streamHub:         options.StreamHub,
+		settingsDefaults:  settingsDefaults(options.SettingsDefaults),
 		tokenGenerator:    options.TokenGenerator,
 		deviceIDGenerator: options.DeviceIDGenerator,
 	}
@@ -161,6 +232,9 @@ func NewRouter(options Options) http.Handler {
 	mux.HandleFunc("/api/v1/status", router.withAuth(router.status))
 	mux.HandleFunc("/api/v1/quota", router.withAuth(router.quota))
 	mux.HandleFunc("/api/v1/events", router.withAuth(router.events))
+	mux.HandleFunc("/api/v1/settings", router.withAuth(router.settings))
+	mux.HandleFunc("/api/v1/devices", router.withAuth(router.devices))
+	mux.HandleFunc("/api/v1/diagnostics", router.withAuth(router.diagnostics))
 	mux.HandleFunc("/api/v1/stream", router.withAuth(router.stream))
 	mux.HandleFunc("/api/v1/hooks/claude", router.claudeHook)
 	return mux
@@ -291,6 +365,114 @@ func (r *Router) events(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func (r *Router) settings(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.getSettings(w, req)
+	case http.MethodPatch:
+		r.patchSettings(w, req)
+	default:
+		w.Header().Set("Allow", "GET, PATCH")
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (r *Router) getSettings(w http.ResponseWriter, _ *http.Request) {
+	settings, err := r.currentSettings()
+	if err != nil {
+		log.Printf("read settings: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read settings")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, SettingsResponse{Settings: settings})
+}
+
+func (r *Router) patchSettings(w http.ResponseWriter, req *http.Request) {
+	var body SettingsPatchRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	settings, err := r.currentSettings()
+	if err != nil {
+		log.Printf("read settings before patch: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read settings")
+		return
+	}
+	applySettingsPatch(&settings, body.Settings)
+	if err := validateSettings(settings); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := r.storeSettingsPatch(body.Settings); err != nil {
+		log.Printf("store settings patch: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not store settings")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, SettingsResponse{Settings: settings})
+}
+
+func (r *Router) devices(w http.ResponseWriter, req *http.Request) {
+	if !allowMethod(w, req, http.MethodGet) {
+		return
+	}
+
+	devices, err := r.store.ListDevicePairings()
+	if err != nil {
+		log.Printf("list devices: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read devices")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, DevicesResponse{
+		Devices: deviceResponses(devices),
+	})
+}
+
+func (r *Router) diagnostics(w http.ResponseWriter, req *http.Request) {
+	if !allowMethod(w, req, http.MethodGet) {
+		return
+	}
+
+	providers, err := r.store.ListProviders()
+	if err != nil {
+		log.Printf("read providers for diagnostics: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read diagnostics")
+		return
+	}
+	sessions, err := r.store.ListCodingSessions()
+	if err != nil {
+		log.Printf("read sessions for diagnostics: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read diagnostics")
+		return
+	}
+	devices, err := r.store.ListDevicePairings()
+	if err != nil {
+		log.Printf("read devices for diagnostics: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read diagnostics")
+		return
+	}
+	events, err := r.store.ListEvents(1)
+	if err != nil {
+		log.Printf("read events for diagnostics: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read diagnostics")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, diagnosticsResponse(
+		r.serverName,
+		r.version,
+		r.now().UTC(),
+		providers,
+		sessions,
+		devices,
+		events,
+	))
+}
+
 func (r *Router) claudeHook(w http.ResponseWriter, req *http.Request) {
 	if !allowMethod(w, req, http.MethodPost) {
 		return
@@ -417,6 +599,153 @@ func (r *Router) sessionResponses() ([]SessionResponse, error) {
 	return response, nil
 }
 
+func (r *Router) currentSettings() (AppSettings, error) {
+	settings, err := r.store.ListSettings()
+	if err != nil {
+		return AppSettings{}, err
+	}
+	values := settingValues(settings)
+	return AppSettings{
+		NotificationsEnabled:    settingBool(values, settingNotificationsEnabled, true),
+		WarningThreshold:        settingInt(values, settingWarningThreshold, r.settingsDefaults.WarningThreshold),
+		CriticalThreshold:       settingInt(values, settingCriticalThreshold, r.settingsDefaults.CriticalThreshold),
+		QuotaResetNotifications: settingBool(values, settingQuotaResetNotifications, true),
+		TaskDoneNotifications:   settingBool(values, settingTaskDoneNotifications, true),
+		CollectIntervalSeconds:  settingInt(values, settingCollectIntervalSeconds, r.settingsDefaults.CollectIntervalSeconds),
+	}, nil
+}
+
+func (r *Router) storeSettingsPatch(patch SettingsPatch) error {
+	if patch.NotificationsEnabled != nil {
+		if err := r.store.SetSetting(settingNotificationsEnabled, strconv.FormatBool(*patch.NotificationsEnabled)); err != nil {
+			return err
+		}
+	}
+	if patch.WarningThreshold != nil {
+		if err := r.store.SetSetting(settingWarningThreshold, strconv.Itoa(*patch.WarningThreshold)); err != nil {
+			return err
+		}
+	}
+	if patch.CriticalThreshold != nil {
+		if err := r.store.SetSetting(settingCriticalThreshold, strconv.Itoa(*patch.CriticalThreshold)); err != nil {
+			return err
+		}
+	}
+	if patch.QuotaResetNotifications != nil {
+		if err := r.store.SetSetting(settingQuotaResetNotifications, strconv.FormatBool(*patch.QuotaResetNotifications)); err != nil {
+			return err
+		}
+	}
+	if patch.TaskDoneNotifications != nil {
+		if err := r.store.SetSetting(settingTaskDoneNotifications, strconv.FormatBool(*patch.TaskDoneNotifications)); err != nil {
+			return err
+		}
+	}
+	if patch.CollectIntervalSeconds != nil {
+		if err := r.store.SetSetting(settingCollectIntervalSeconds, strconv.Itoa(*patch.CollectIntervalSeconds)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applySettingsPatch(settings *AppSettings, patch SettingsPatch) {
+	if patch.NotificationsEnabled != nil {
+		settings.NotificationsEnabled = *patch.NotificationsEnabled
+	}
+	if patch.WarningThreshold != nil {
+		settings.WarningThreshold = *patch.WarningThreshold
+	}
+	if patch.CriticalThreshold != nil {
+		settings.CriticalThreshold = *patch.CriticalThreshold
+	}
+	if patch.QuotaResetNotifications != nil {
+		settings.QuotaResetNotifications = *patch.QuotaResetNotifications
+	}
+	if patch.TaskDoneNotifications != nil {
+		settings.TaskDoneNotifications = *patch.TaskDoneNotifications
+	}
+	if patch.CollectIntervalSeconds != nil {
+		settings.CollectIntervalSeconds = *patch.CollectIntervalSeconds
+	}
+}
+
+func validateSettings(settings AppSettings) error {
+	if settings.WarningThreshold < 0 || settings.WarningThreshold > 100 {
+		return fmt.Errorf("warning_threshold must be between 0 and 100")
+	}
+	if settings.CriticalThreshold < 0 || settings.CriticalThreshold > 100 {
+		return fmt.Errorf("critical_threshold must be between 0 and 100")
+	}
+	if settings.WarningThreshold >= settings.CriticalThreshold {
+		return fmt.Errorf("warning_threshold must be less than critical_threshold")
+	}
+	if settings.CollectIntervalSeconds <= 0 {
+		return fmt.Errorf("collect_interval_seconds must be positive")
+	}
+	return nil
+}
+
+func deviceResponses(devices []store.DevicePairing) []DeviceResponse {
+	response := make([]DeviceResponse, 0, len(devices))
+	for _, device := range devices {
+		response = append(response, DeviceResponse{
+			DeviceID:   device.DeviceID,
+			Name:       device.Name,
+			PairedAt:   device.PairedAt,
+			LastSeenAt: device.LastSeenAt,
+		})
+	}
+	return response
+}
+
+func diagnosticsResponse(
+	serverName string,
+	version string,
+	serverTime time.Time,
+	providers []store.Provider,
+	sessions []store.CodingSession,
+	devices []store.DevicePairing,
+	events []store.Event,
+) DiagnosticsResponse {
+	var availableProviderCount int
+	for _, provider := range providers {
+		if provider.Available {
+			availableProviderCount++
+		}
+	}
+
+	var runningSessionCount int
+	var waitingSessionCount int
+	for _, session := range sessions {
+		switch session.State {
+		case store.SessionStateRunning:
+			runningSessionCount++
+		case store.SessionStateWaiting:
+			waitingSessionCount++
+		}
+	}
+
+	var latestEventAt *time.Time
+	if len(events) > 0 {
+		value := events[0].CreatedAt
+		latestEventAt = &value
+	}
+
+	return DiagnosticsResponse{
+		OK:                     true,
+		ServerName:             serverName,
+		Version:                version,
+		ServerTime:             serverTime,
+		ProviderCount:          len(providers),
+		AvailableProviderCount: availableProviderCount,
+		RunningSessionCount:    runningSessionCount,
+		WaitingSessionCount:    waitingSessionCount,
+		PairedDeviceCount:      len(devices),
+		LatestEventAt:          latestEventAt,
+	}
+}
+
 func quotaWindowResponses(windows []store.QuotaWindow) []QuotaWindowResponse {
 	response := make([]QuotaWindowResponse, 0, len(windows))
 	for _, window := range windows {
@@ -447,6 +776,53 @@ func eventResponses(events []store.Event) []EventResponse {
 	}
 
 	return response
+}
+
+func settingValues(settings []store.Setting) map[string]string {
+	values := make(map[string]string, len(settings))
+	for _, setting := range settings {
+		values[setting.Key] = setting.Value
+	}
+	return values
+}
+
+func settingBool(values map[string]string, key string, fallback bool) bool {
+	value, ok := values[key]
+	if !ok {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Printf("ignore invalid bool setting %q=%q: %v", key, value, err)
+		return fallback
+	}
+	return parsed
+}
+
+func settingInt(values map[string]string, key string, fallback int) int {
+	value, ok := values[key]
+	if !ok {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		log.Printf("ignore invalid int setting %q=%q: %v", key, value, err)
+		return fallback
+	}
+	return parsed
+}
+
+func settingsDefaults(defaults SettingsDefaults) SettingsDefaults {
+	if defaults.CollectIntervalSeconds <= 0 {
+		defaults.CollectIntervalSeconds = 60
+	}
+	if defaults.WarningThreshold <= 0 {
+		defaults.WarningThreshold = 80
+	}
+	if defaults.CriticalThreshold <= 0 {
+		defaults.CriticalThreshold = 95
+	}
+	return defaults
 }
 
 func eventLimit(req *http.Request) int {

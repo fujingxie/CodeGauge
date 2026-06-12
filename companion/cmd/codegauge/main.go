@@ -108,6 +108,11 @@ func run() error {
 			PairCode:   pairCode,
 			Store:      notifyingStore,
 			StreamHub:  streamHub,
+			SettingsDefaults: server.SettingsDefaults{
+				CollectIntervalSeconds: cfg.CollectIntervalSeconds,
+				WarningThreshold:       cfg.WarningThreshold,
+				CriticalThreshold:      cfg.CriticalThreshold,
+			},
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

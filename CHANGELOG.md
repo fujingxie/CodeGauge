@@ -1,5 +1,18 @@
 # CodeGauge Changelog
 
+## 2026-06-12 - Settings prerequisite APIs
+
+- Added Companion `GET`/`PATCH /api/v1/settings` with Bearer auth.
+- Added typed settings defaults for notification toggles, warning/critical thresholds, quota reset/task-done notifications, and collect interval.
+- Persisted settings updates in the existing SQLite `settings` key/value table.
+- Added Companion `GET /api/v1/devices` with newest-first paired devices and no token exposure.
+- Added Companion `GET /api/v1/diagnostics` summarizing server identity, provider/session/device counts, and latest event time.
+- Added Store list APIs for device pairings and settings.
+- Passed config defaults into the REST router from Companion startup.
+- Added Store and Server tests for settings, devices, diagnostics, validation, ordering, and token redaction.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified a temporary Companion smoke test for pairing, settings default read, settings PATCH, devices, and diagnostics.
+
 ## 2026-06-12 - T14 precise Codex quota source
 
 - Added optional Collector `PreciseSource` support that runs after `ccusage` and does not break fallback collection when it fails.

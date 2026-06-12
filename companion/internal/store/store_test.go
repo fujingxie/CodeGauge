@@ -312,6 +312,63 @@ func openTestStore(t *testing.T) *Store {
 	return db
 }
 
+func TestListDevicePairingsReturnsNewestFirst(t *testing.T) {
+	db := openTestStore(t)
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	for _, device := range []DevicePairing{
+		{
+			DeviceID:   "phone-old",
+			Name:       "Old Phone",
+			Token:      "token-old",
+			PairedAt:   now.Add(-2 * time.Hour),
+			LastSeenAt: now.Add(-time.Hour),
+		},
+		{
+			DeviceID:   "phone-new",
+			Name:       "New Phone",
+			Token:      "token-new",
+			PairedAt:   now.Add(-time.Hour),
+			LastSeenAt: now,
+		},
+	} {
+		if err := db.UpsertDevicePairing(device); err != nil {
+			t.Fatalf("UpsertDevicePairing: %v", err)
+		}
+	}
+
+	devices, err := db.ListDevicePairings()
+	if err != nil {
+		t.Fatalf("ListDevicePairings: %v", err)
+	}
+	if len(devices) != 2 {
+		t.Fatalf("devices length = %d, want 2", len(devices))
+	}
+	if devices[0].DeviceID != "phone-new" || devices[1].DeviceID != "phone-old" {
+		t.Fatalf("device order = %q, %q; want newest last_seen first", devices[0].DeviceID, devices[1].DeviceID)
+	}
+}
+
+func TestListSettingsReturnsSortedKeys(t *testing.T) {
+	db := openTestStore(t)
+	if err := db.SetSetting("warning_threshold", "80"); err != nil {
+		t.Fatalf("SetSetting warning_threshold: %v", err)
+	}
+	if err := db.SetSetting("collect_interval_seconds", "60"); err != nil {
+		t.Fatalf("SetSetting collect_interval_seconds: %v", err)
+	}
+
+	settings, err := db.ListSettings()
+	if err != nil {
+		t.Fatalf("ListSettings: %v", err)
+	}
+	if len(settings) != 2 {
+		t.Fatalf("settings length = %d, want 2", len(settings))
+	}
+	if settings[0].Key != "collect_interval_seconds" || settings[1].Key != "warning_threshold" {
+		t.Fatalf("setting order = %q, %q; want sorted keys", settings[0].Key, settings[1].Key)
+	}
+}
+
 func assertIntPtr(t *testing.T, name string, got *int, want int) {
 	t.Helper()
 	if got == nil {

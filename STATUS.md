@@ -31,6 +31,9 @@ Last updated: 2026-06-12
 - T13: 小组件会通过 WorkManager 定时刷新，并在前台监听服务收到 `/stream` 推送时主动刷新。
 - T14: Companion 已实现 Codex 额度精确化增强，通过 Codex app-server 本地协议读取 5h/weekly 使用百分比和 reset time，并把精确窗口标记为 `source=endpoint`。
 - T14: 精确源失败时会记录日志并回落到 `ccusage` 数据，不影响 Companion 主采集流程。
+- 设置页前置: Companion 已实现鉴权 `/api/v1/settings`，可读取默认设置并持久化通知开关、阈值和采集间隔。
+- 设置页前置: Companion 已实现鉴权 `/api/v1/devices`，按最近活动倒序返回已配对设备且不暴露 token。
+- 设置页前置: Companion 已实现鉴权 `/api/v1/diagnostics`，返回 Companion 标识、Provider/Session/Device 计数和最近事件时间。
 
 ## 进行中 / 待处理项
 
@@ -74,7 +77,8 @@ Last updated: 2026-06-12
 - T14: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过。
 - T14: `CODEGAUGE_REAL_CODEX_PATH=/Applications/Codex.app/Contents/Resources/codex go test ./internal/collector -run TestRealCodexAppServerCollectsRateLimits -count=1` 通过。
 - T14: 临时 Companion 端到端 smoke 通过：`/status` 中 Codex `5h` 与 `weekly` 窗口显示 `source=endpoint`，weekly 保留 `ccusage` token used。
-- 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
+- 设置页前置: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过。
+- 设置页前置: 临时 Companion smoke 通过：配对后可访问 `/settings`、PATCH 设置、查看 `/devices` 和 `/diagnostics`。
 
 ## 已知问题和技术债务
 
@@ -95,7 +99,8 @@ Last updated: 2026-06-12
 - T7/T9 mDNS 和 Android NSD 依赖局域网、系统 Bonjour/mDNS 环境和路由器组播支持；已通过 `dns-sd` 和手机 App 手动验收，后续仍需保留手动回归。
 - T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
-- T12 通知设置开关和自定义阈值尚未接入，因为设置页需要的 `/settings` API 仍在待办；当前使用 Companion 默认阈值 80/95。
+- 设置页 Android UI 尚未接入 `/settings`、`/devices`、`/diagnostics`。
+- `/settings` 当前负责持久化偏好；Collector 采集间隔、stream alert 阈值和 Android 通知开关仍需后续接入运行时读取/热更新。
 - T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
 - T14 当前只对 Codex 接入稳定的本地 app-server 精确源；Claude Code 目前没有同等级稳定的本地 usage/rate-limit 协议，仍使用 `ccusage` 主路径，避免硬编码私有接口。
 
@@ -128,3 +133,5 @@ Last updated: 2026-06-12
 - T13 使用 WorkManager 15 分钟周期任务兜底刷新，同时在配对状态变化和前台 `/stream` 收到消息时主动刷新，让桌面小组件保持接近实时但不额外常驻后台。
 - T14 精确源被设计为 Collector 的可选 `PreciseSource`，在 `ccusage` 采集之后运行；精确源只覆盖百分比、reset time 和 source，缺失的 used/limit 会从已有窗口合并，保证回退数据仍完整。
 - T14 Codex 精确源通过 `codex app-server --stdio` 调用 `account/rateLimits/read`，不读取或输出本地 token，不直接拼接私有 HTTP endpoint。
+- 设置页前置 REST API 复用现有 Bearer 鉴权；设备列表响应只返回设备元数据，不返回 `device_pairings.token`。
+- 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
