@@ -251,3 +251,11 @@
 - Extended the shared quota ring gauge to support a larger detail-page size without changing existing Dashboard card rendering.
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb after reinstalling; opened Claude and Codex detail pages, tested back navigation and scrolling, and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugeDashboard` crashes in `logcat`.
+
+## 2026-06-12 - Android Pairing 高精度还原
+
+- Reworked the Pairing screen to match the high-fidelity dark onboarding flow: title header, discovery skeletons, discovered computer cards, manual IP:Port section, and pairing-code panel.
+- Kept the existing NSD discovery, manual endpoint parsing, pairing repository, encrypted token persistence, listener service startup, and widget refresh behavior.
+- Added a six-digit pairing-code visual input with full-field text focus and a design-matched primary action.
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb after clearing app data: discovered Companion, entered code `123456`, paired into Dashboard, checked manual input expansion, and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugePairing` crashes in `logcat`.

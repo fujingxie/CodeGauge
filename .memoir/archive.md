@@ -41,7 +41,7 @@ go run ./cmd/codegauge
 
 ## 待办与已知问题
 
-1. **Android 高精度 UI 后续页**：Pairing 和 Widget 仍需继续按设计图分阶段还原
+1. **Android 高精度 UI 后续页**：Widget 仍需继续按设计图还原
 2. **集成测试覆盖**：部分模块（如 `collector_integration_test.go`）的集成测试可能需要完善
 3. **文档完善**：`docs/implementation-notes.md` 包含实施笔记，但 README 仍为功能摘要
 

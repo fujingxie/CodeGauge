@@ -40,6 +40,7 @@ Last updated: 2026-06-12
 - Android UI-R1/R2: 已按高精度设计图完成首页视觉重构，包含暗色主题基线、环形额度仪表、顶部连接同步条、Provider 额度卡、当前会话条和设计稿风格底部导航。
 - Android UI-R3: 已按高精度设计图完成 Activity 和 Settings 视觉重构，包含活动会话卡、事件流、连接设置卡、通知开关、阈值滑杆、诊断和设备列表样式。
 - Android UI-R4: 已按高精度设计图完成 Provider 详情页，支持从 Dashboard 点击 Claude/Codex 额度卡进入详情、查看大号环形额度、5h/周窗口明细和最近事件，并支持返回首页。
+- Android UI-R5: 已按高精度设计图完成配对流程视觉重构，包含发现中骨架、发现设备列表、手动 IP:Port 输入、配对码面板和深色错误态，保留现有 NSD、手动配对和加密 token 流程。
 
 ## 进行中 / 待处理项
 
@@ -96,6 +97,8 @@ Last updated: 2026-06-12
 - Android UI-R3: adb 真机复测通过，已安装 debug APK、截图检查 Activity / Settings；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugeActivity` 异常日志。
 - Android UI-R4: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过。
 - Android UI-R4: adb 真机复测通过，已安装 debug APK、点击 Claude/Codex 额度卡进入 Provider 详情、验证返回和滚动；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugeDashboard` 异常日志。
+- Android UI-R5: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过。
+- Android UI-R5: adb 真机复测通过，已安装 debug APK、清空 App 数据进入未配对状态、验证 NSD 发现设备、配对码输入、提交配对进入 Dashboard、手动输入展开态；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugePairing` 异常日志。
 
 ## 已知问题和技术债务
 
@@ -153,5 +156,5 @@ Last updated: 2026-06-12
 - 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
 - Android 设置页沿用现有 OkHttp + `org.json` 网络层，不额外引入 serialization/Ktor；保存时 PATCH 当前完整设置，减少字段级脏状态复杂度。
 - Android UI 第一轮对齐以 `CodeGauge-完整方案.md` 和真机截图为依据；Claude 设计分享页当前无法被自动化读取，后续如提供设计导出或完整截图，可继续做像素级对齐。
-- 高精度 UI 设计图来自 `/Users/xiexiansheng/Downloads/document/CodeGauge____.pptx`，其中包含 25 张 1600×3000 手机界面图；UI-R1/R2 已落地 Dashboard，UI-R3 已落地 Activity 和 Settings，UI-R4 已落地 Provider 详情页，Pairing 和 Widget 仍需后续分阶段还原。
+- 高精度 UI 设计图来自 `/Users/xiexiansheng/Downloads/document/CodeGauge____.pptx`，其中包含 25 张 1600×3000 手机界面图；UI-R1/R2 已落地 Dashboard，UI-R3 已落地 Activity 和 Settings，UI-R4 已落地 Provider 详情页，UI-R5 已落地 Pairing，Widget 仍需后续还原。
 - Android 高精度 UI 的暗色设计 token、卡片、状态点、胶囊和环形仪表已抽到 `android/app/src/main/java/com/codegauge/ui/design/CodeGaugeDesign.kt`，避免 Dashboard / Activity / Settings 重复维护视觉基础组件。
