@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.dashboard.DashboardSnapshot
@@ -49,6 +50,7 @@ import com.codegauge.dashboard.QuotaWindowStatus
 import com.codegauge.dashboard.SessionStatus
 import com.codegauge.dashboard.WindowTypes
 import com.codegauge.dashboard.formatPercentLeft
+import com.codegauge.dashboard.formatProviderName
 import com.codegauge.dashboard.formatResetText
 import com.codegauge.dashboard.formatSessionSummary
 import com.codegauge.dashboard.formatSource
@@ -89,7 +91,7 @@ fun DashboardRoute(
             errorMessage = null
         } catch (exception: Exception) {
             Log.e(Tag, "Load dashboard failed", exception)
-            errorMessage = exception.message ?: "Could not load dashboard."
+            errorMessage = exception.message ?: "仪表盘加载失败"
         } finally {
             isLoading = false
             isRefreshing = false
@@ -177,7 +179,7 @@ private fun DashboardHeader() {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Claude and Codex usage at a glance.",
+            text = "Claude / Codex 额度与会话状态",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -201,7 +203,7 @@ private fun ConnectionPanel(
             StatusDot(online)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (online) "Connected" else "Disconnected",
+                    text = if (online) "已连接" else "未连接",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
@@ -226,13 +228,13 @@ private fun ConnectionPanel(
                 modifier = Modifier.weight(1f),
                 onClick = onRefresh,
             ) {
-                Text("Refresh")
+                Text("刷新")
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 onClick = onClearPairing,
             ) {
-                Text("Pair again")
+                Text("重新配对")
             }
         }
     }
@@ -304,7 +306,7 @@ private fun ProviderCard(
 
         if (!provider.available) {
             Text(
-                text = "Data unavailable",
+                text = "数据暂不可用",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -312,13 +314,13 @@ private fun ProviderCard(
         }
 
         QuotaWindowBlock(
-            label = "5h window",
+            label = "5 小时窗口",
             window = fiveHour,
             now = now,
             accentColor = MaterialTheme.colorScheme.primary,
         )
         QuotaWindowBlock(
-            label = "Weekly",
+            label = "周额度",
             window = weekly,
             now = now,
             accentColor = MaterialTheme.colorScheme.secondary,
@@ -349,7 +351,7 @@ private fun QuotaWindowBlock(
             )
             Text(
                 text = formatPercentLeft(window?.percentLeft),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 30.sp),
                 color = accentColor,
                 fontWeight = FontWeight.Bold,
             )
@@ -392,7 +394,7 @@ private fun QuotaWindowBlock(
 private fun SessionSummaryPanel(sessions: List<SessionStatus>) {
     Panel {
         Text(
-            text = "Current sessions",
+            text = "当前会话",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
@@ -418,18 +420,24 @@ private fun SessionRow(session: SessionStatus) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = session.projectPath.substringAfterLast('/').ifBlank { "Unknown project" },
+                text = session.projectPath.substringAfterLast('/').ifBlank { "未知项目" },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = session.providerId,
+                text = formatProviderName(session.providerId),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Text(
-            text = session.state,
+            text = when (session.state) {
+                "running" -> "运行中"
+                "waiting" -> "等待确认"
+                "done" -> "已完成"
+                "error" -> "异常"
+                else -> session.state.ifBlank { "未知" }
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
@@ -453,13 +461,13 @@ private fun LoadingPanel() {
 private fun EmptyDashboardPanel() {
     Panel {
         Text(
-            text = "No dashboard data",
+            text = "暂无仪表盘数据",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Pull down or tap Refresh after Companion is running.",
+            text = "启动 Companion 后下拉或点击刷新。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

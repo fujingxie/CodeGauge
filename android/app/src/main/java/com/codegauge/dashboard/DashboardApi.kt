@@ -29,7 +29,7 @@ class OkHttpDashboardApi(
                     if (!response.isSuccessful) {
                         throw DashboardException(
                             parseErrorMessage(body)
-                                ?: "Status failed with HTTP ${response.code}",
+                                ?: "状态请求失败：HTTP ${response.code}",
                         )
                     }
 
@@ -38,7 +38,7 @@ class OkHttpDashboardApi(
             } catch (exception: DashboardException) {
                 throw exception
             } catch (exception: IOException) {
-                throw DashboardException("Cannot reach ${pairing.serverUrl}", exception)
+                throw DashboardException("无法连接 ${pairing.serverUrl}", exception)
             }
         }
     }
@@ -53,4 +53,3 @@ class OkHttpDashboardApi(
         }.getOrNull()
     }
 }
-

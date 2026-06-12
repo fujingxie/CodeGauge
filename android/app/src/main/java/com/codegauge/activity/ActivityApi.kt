@@ -29,7 +29,7 @@ class OkHttpActivityApi(
                     if (!response.isSuccessful) {
                         throw ActivityException(
                             parseErrorMessage(body)
-                                ?: "Events failed with HTTP ${response.code}",
+                                ?: "事件请求失败：HTTP ${response.code}",
                         )
                     }
                     ActivityJsonParser.parseEvents(body)
@@ -37,7 +37,7 @@ class OkHttpActivityApi(
             } catch (exception: ActivityException) {
                 throw exception
             } catch (exception: IOException) {
-                throw ActivityException("Cannot reach ${pairing.serverUrl}", exception)
+                throw ActivityException("无法连接 ${pairing.serverUrl}", exception)
             }
         }
     }
@@ -52,4 +52,3 @@ class OkHttpActivityApi(
         }.getOrNull()
     }
 }
-

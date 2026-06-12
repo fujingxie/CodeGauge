@@ -80,7 +80,7 @@ fun SettingsRoute(
             errorMessage = null
         } catch (exception: Exception) {
             Log.e(Tag, "Load settings failed", exception)
-            errorMessage = exception.message ?: "Could not load settings."
+            errorMessage = exception.message ?: "设置加载失败"
         } finally {
             isLoading = false
         }
@@ -97,7 +97,7 @@ fun SettingsRoute(
             errorMessage = null
         } catch (exception: Exception) {
             Log.e(Tag, "Save settings failed", exception)
-            errorMessage = exception.message ?: "Could not save settings."
+            errorMessage = exception.message ?: "设置保存失败"
         } finally {
             isSaving = false
         }
@@ -187,13 +187,13 @@ fun SettingsRoute(
 private fun SettingsHeader() {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "Settings",
+            text = "设置",
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Alerts, companion health, and paired devices.",
+            text = "通知偏好、连接诊断与配对设备",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -224,7 +224,7 @@ private fun SettingsActionsPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = if (hasChanges) "Unsaved changes" else "Settings are up to date",
+                text = if (hasChanges) "有未保存的修改" else "设置已同步",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (hasChanges) {
                     MaterialTheme.colorScheme.primary
@@ -251,14 +251,14 @@ private fun SettingsActionsPanel(
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                 } else {
-                    Text("Save")
+                    Text("保存")
                 }
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 onClick = onRefresh,
             ) {
-                Text("Refresh")
+                Text("刷新")
             }
         }
 
@@ -266,7 +266,7 @@ private fun SettingsActionsPanel(
             modifier = Modifier.fillMaxWidth(),
             onClick = onClearPairing,
         ) {
-            Text("Pair again")
+            Text("重新配对")
         }
     }
 }
@@ -278,22 +278,22 @@ private fun NotificationPanel(
 ) {
     Panel {
         Text(
-            text = "Notifications",
+            text = "通知",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         SettingSwitchRow(
-            title = "Enable notifications",
-            detail = "Master switch for CodeGauge alerts.",
+            title = "启用通知",
+            detail = "控制 CodeGauge 的所有手机通知。",
             checked = settings.notificationsEnabled,
             onCheckedChange = {
                 onChange(settings.copy(notificationsEnabled = it))
             },
         )
         SettingSwitchRow(
-            title = "Quota recovery",
-            detail = "Notify when usage drops below the warning threshold.",
+            title = "额度恢复提醒",
+            detail = "额度低于预警线后恢复时提醒。",
             checked = settings.quotaResetNotifications,
             enabled = settings.notificationsEnabled,
             onCheckedChange = {
@@ -301,8 +301,8 @@ private fun NotificationPanel(
             },
         )
         SettingSwitchRow(
-            title = "Task done",
-            detail = "Notify when Claude reports a completed task.",
+            title = "任务完成提醒",
+            detail = "Claude / Codex 会话完成时提醒。",
             checked = settings.taskDoneNotifications,
             enabled = settings.notificationsEnabled,
             onCheckedChange = {
@@ -321,13 +321,13 @@ private fun ThresholdPanel(
 ) {
     Panel {
         Text(
-            text = "Usage thresholds",
+            text = "额度阈值",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         ThresholdSlider(
-            title = "Warning",
+            title = "预警",
             value = settings.warningThreshold,
             range = 0f..99f,
             onValueChange = { value ->
@@ -336,7 +336,7 @@ private fun ThresholdPanel(
             },
         )
         ThresholdSlider(
-            title = "Critical",
+            title = "紧急",
             value = settings.criticalThreshold,
             range = 1f..100f,
             onValueChange = { value ->
@@ -348,7 +348,7 @@ private fun ThresholdPanel(
             modifier = Modifier.fillMaxWidth(),
             value = intervalText,
             onValueChange = onIntervalTextChange,
-            label = { Text("Collect interval seconds") },
+            label = { Text("采集间隔（秒）") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             isError = intervalText.toIntOrNull()?.let { it <= 0 } ?: true,
@@ -377,13 +377,13 @@ private fun DiagnosticsPanel(diagnostics: CompanionDiagnostics) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            StatusPill(if (diagnostics.ok) "OK" else "Issue")
+            StatusPill(if (diagnostics.ok) "正常" else "异常")
         }
-        MetricRow("Providers", "${diagnostics.availableProviderCount}/${diagnostics.providerCount} available")
-        MetricRow("Sessions", "${diagnostics.runningSessionCount} running · ${diagnostics.waitingSessionCount} waiting")
-        MetricRow("Devices", "${diagnostics.pairedDeviceCount} paired")
-        MetricRow("Server time", formatInstant(diagnostics.serverTime))
-        MetricRow("Latest event", formatInstant(diagnostics.latestEventAt))
+        MetricRow("服务", "${diagnostics.availableProviderCount}/${diagnostics.providerCount} 可用")
+        MetricRow("会话", "${diagnostics.runningSessionCount} 运行中 · ${diagnostics.waitingSessionCount} 等待确认")
+        MetricRow("设备", "${diagnostics.pairedDeviceCount} 台已配对")
+        MetricRow("服务时间", formatInstant(diagnostics.serverTime))
+        MetricRow("最近事件", formatInstant(diagnostics.latestEventAt))
     }
 }
 
@@ -391,14 +391,14 @@ private fun DiagnosticsPanel(diagnostics: CompanionDiagnostics) {
 private fun DevicesPanel(devices: List<PairedDevice>) {
     Panel {
         Text(
-            text = "Paired devices",
+            text = "已配对设备",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         if (devices.isEmpty()) {
             Text(
-                text = "No paired devices",
+                text = "暂无已配对设备",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -506,13 +506,13 @@ private fun MetricRow(
 private fun DeviceRow(device: PairedDevice) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-            text = device.name.ifBlank { "Unknown device" },
+            text = device.name.ifBlank { "未知设备" },
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Last seen ${formatInstant(device.lastSeenAt)}",
+            text = "最近在线 ${formatInstant(device.lastSeenAt)}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -587,13 +587,13 @@ private fun Panel(content: @Composable ColumnScope.() -> Unit) {
 
 private fun formatInstant(value: Instant?): String {
     if (value == null) {
-        return "Unknown"
+        return "未知"
     }
     return TimeFormatter.format(value)
 }
 
 private val TimeFormatter = DateTimeFormatter
-    .ofPattern("MMM d, HH:mm")
+    .ofPattern("M月d日 HH:mm")
     .withZone(ZoneId.systemDefault())
 
 private const val Tag = "CodeGaugeSettings"

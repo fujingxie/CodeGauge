@@ -32,7 +32,7 @@ object DashboardJsonParser {
                 serverTime = root.optInstant("server_time"),
             )
         } catch (exception: JSONException) {
-            throw DashboardException("Status response was not valid JSON", exception)
+            throw DashboardException("状态响应不是有效 JSON", exception)
         }
     }
 
@@ -97,4 +97,3 @@ private fun JSONObject.optInstant(name: String): Instant? {
 
     return runCatching { Instant.parse(value) }.getOrNull()
 }
-

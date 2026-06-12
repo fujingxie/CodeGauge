@@ -63,7 +63,7 @@ class NotificationMapperTest {
 
         assertEquals(NotificationKind.Alert, spec?.kind)
         assertEquals("Claude 额度严重预警", spec?.title)
-        assertEquals("5h 使用率 97%，阈值 95%。", spec?.body)
+        assertEquals("5 小时窗口 使用率 97%，阈值 95%。", spec?.body)
     }
 
     @Test
@@ -83,7 +83,7 @@ class NotificationMapperTest {
 
         assertEquals(NotificationKind.Alert, spec?.kind)
         assertEquals("Claude 额度已恢复", spec?.title)
-        assertEquals("5h 使用率已回落到 4%。", spec?.body)
+        assertEquals("5 小时窗口 使用率已回落到 4%。", spec?.body)
     }
 
     @Test

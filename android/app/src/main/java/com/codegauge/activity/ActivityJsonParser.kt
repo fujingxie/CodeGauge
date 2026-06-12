@@ -16,7 +16,7 @@ object ActivityJsonParser {
                 }
             }
         } catch (exception: JSONException) {
-            throw ActivityException("Events response was not valid JSON", exception)
+            throw ActivityException("事件响应不是有效 JSON", exception)
         }
     }
 
@@ -31,7 +31,7 @@ object ActivityJsonParser {
                 else -> ActivityStreamMessage.Ignored
             }
         } catch (exception: JSONException) {
-            throw ActivityException("Stream message was not valid JSON", exception)
+            throw ActivityException("实时消息不是有效 JSON", exception)
         }
     }
 

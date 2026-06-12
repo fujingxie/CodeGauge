@@ -165,9 +165,9 @@ fun PairingRoute(
 
                         if (endpoint == null) {
                             errorMessage = if (manualAddress.isBlank()) {
-                                "Select a Companion or enter IP:Port."
+                                "请选择一个 Companion，或手动输入 IP:Port。"
                             } else {
-                                "Manual address must look like 192.168.1.20:18770."
+                                "手动地址格式应类似 192.168.1.20:18770。"
                             }
                             return@PairingPanel
                         }
@@ -185,7 +185,7 @@ fun PairingRoute(
                                 manualAddress = ""
                             } catch (exception: Exception) {
                                 Log.e(Tag, "Pairing failed", exception)
-                                errorMessage = exception.message ?: "Pairing failed."
+                                errorMessage = exception.message ?: "配对失败。"
                             } finally {
                                 isPairing = false
                             }
@@ -219,7 +219,7 @@ private fun Header() {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Local AI usage dashboard.",
+            text = "本地 AI 额度仪表盘",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -257,7 +257,7 @@ private fun PairingPanel(
 
     Panel {
         Text(
-            text = "Companion",
+            text = "连接 Companion",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
@@ -265,7 +265,7 @@ private fun PairingPanel(
 
         if (endpoints.isEmpty()) {
             Text(
-                text = "Searching local network...",
+                text = "正在搜索局域网内的 Companion...",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -285,7 +285,7 @@ private fun PairingPanel(
             modifier = Modifier.fillMaxWidth(),
             value = manualAddress,
             onValueChange = onManualAddressChanged,
-            label = { Text("Manual IP:Port") },
+            label = { Text("手动输入 IP:Port") },
             placeholder = { Text("192.168.1.20:18770") },
             singleLine = true,
         )
@@ -294,7 +294,7 @@ private fun PairingPanel(
             modifier = Modifier.fillMaxWidth(),
             value = pairCode,
             onValueChange = onPairCodeChanged,
-            label = { Text("Pair code") },
+            label = { Text("6 位配对码") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             singleLine = true,
         )
@@ -318,10 +318,10 @@ private fun PairingPanel(
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
-                    Text("Pairing")
+                    Text("正在配对")
                 }
             } else {
-                Text("Pair")
+                Text("配对")
             }
         }
     }

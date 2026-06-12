@@ -46,14 +46,14 @@ class OkHttpPairingApi(
                     if (!response.isSuccessful) {
                         throw PairingException(
                             parseErrorMessage(responseBody)
-                                ?: "Pairing failed with HTTP ${response.code}",
+                                ?: "配对请求失败：HTTP ${response.code}",
                         )
                     }
 
                     val json = JSONObject(responseBody)
                     val token = json.optString("token")
                     if (token.isBlank()) {
-                        throw PairingException("Pairing response did not include a token")
+                        throw PairingException("配对响应缺少 token")
                     }
 
                     PairResponse(
@@ -65,9 +65,9 @@ class OkHttpPairingApi(
             } catch (exception: PairingException) {
                 throw exception
             } catch (exception: IOException) {
-                throw PairingException("Cannot reach ${endpoint.baseUrl}", exception)
+                throw PairingException("无法连接 ${endpoint.baseUrl}", exception)
             } catch (exception: JSONException) {
-                throw PairingException("Pairing response was not valid JSON", exception)
+                throw PairingException("配对响应不是有效 JSON", exception)
             }
         }
     }
@@ -86,4 +86,3 @@ class OkHttpPairingApi(
         private val JsonMediaType = "application/json; charset=utf-8".toMediaType()
     }
 }
-

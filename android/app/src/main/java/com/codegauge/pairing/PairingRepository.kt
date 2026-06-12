@@ -19,7 +19,7 @@ class PairingRepository(
         deviceName: String,
     ): PairingRecord {
         if (!PairCodePattern.matches(pairCode)) {
-            throw PairingException("Pair code must be 6 digits")
+            throw PairingException("配对码必须是 6 位数字")
         }
 
         val response = api.pair(
@@ -44,4 +44,3 @@ class PairingRepository(
         private val PairCodePattern = Regex("^\\d{6}$")
     }
 }
-

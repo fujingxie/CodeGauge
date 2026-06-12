@@ -49,6 +49,7 @@ import com.codegauge.activity.formatSessionState
 import com.codegauge.activity.formatSessionTitle
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.dashboard.SessionStatus
+import com.codegauge.dashboard.formatProviderName
 import com.codegauge.pairing.PairingRecord
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -88,7 +89,7 @@ fun ActivityRoute(
             errorMessage = null
         } catch (exception: Exception) {
             Log.e(Tag, "Load activity failed", exception)
-            errorMessage = exception.message ?: "Could not load activity."
+            errorMessage = exception.message ?: "活动记录加载失败"
         } finally {
             isLoading = false
             isRefreshing = false
@@ -128,7 +129,7 @@ fun ActivityRoute(
             onFailure = { error ->
                 Log.e(Tag, "Activity stream failed", error)
                 scope.launch {
-                    errorMessage = error.message ?: "Activity stream disconnected."
+                    errorMessage = error.message ?: "实时连接已断开"
                 }
             },
         )
@@ -190,13 +191,13 @@ fun ActivityRoute(
 private fun ActivityHeader() {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "Activity",
+            text = "活动",
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Sessions and hook events as they arrive.",
+            text = "正在运行的会话与实时事件流",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -207,7 +208,7 @@ private fun ActivityHeader() {
 private fun SessionsPanel(sessions: List<SessionStatus>) {
     Panel {
         Text(
-            text = "Current sessions",
+            text = "当前会话",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
@@ -215,7 +216,7 @@ private fun SessionsPanel(sessions: List<SessionStatus>) {
 
         if (sessions.isEmpty()) {
             Text(
-                text = "All sessions idle",
+                text = "当前没有运行中的会话",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -264,7 +265,7 @@ private fun SessionCard(session: SessionStatus) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = session.providerId,
+                    text = formatProviderName(session.providerId),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -289,7 +290,7 @@ private fun EventsPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Event stream",
+                text = "事件流",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
@@ -303,7 +304,7 @@ private fun EventsPanel(
 
         if (events.isEmpty()) {
             Text(
-                text = "No events yet",
+                text = "暂无事件",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

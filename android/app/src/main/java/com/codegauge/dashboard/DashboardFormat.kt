@@ -6,7 +6,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 fun formatPercentLeft(percentLeft: Int?): String {
-    return percentLeft?.let { "${it.coerceIn(0, 100)}% left" } ?: "Unknown"
+    return percentLeft?.let { "剩余 ${it.coerceIn(0, 100)}%" } ?: "未知"
 }
 
 fun progressFromPercentLeft(percentLeft: Int?): Float? {
@@ -15,47 +15,56 @@ fun progressFromPercentLeft(percentLeft: Int?): Float? {
 
 fun formatUsage(used: Long?, limit: Long?): String {
     return when {
-        used == null && limit == null -> "Usage unavailable"
-        used != null && limit != null -> "${formatTokenCount(used)} / ${formatTokenCount(limit)}"
-        used != null -> "${formatTokenCount(used)} tokens used"
-        else -> "Limit ${formatTokenCount(limit!!)}"
+        used == null && limit == null -> "用量暂不可用"
+        used != null && limit != null -> "${formatTokenCount(used)} / ${formatTokenCount(limit)} 令牌"
+        used != null -> "已用 ${formatTokenCount(used)} 令牌"
+        else -> "上限 ${formatTokenCount(limit!!)} 令牌"
     }
 }
 
 fun formatResetText(resetsAt: Instant?, now: Instant): String {
     if (resetsAt == null) {
-        return "Reset time unknown"
+        return "恢复时间未知"
     }
 
     val duration = Duration.between(now, resetsAt)
     if (!duration.isNegative && !duration.isZero) {
-        return "Resets in ${formatDuration(duration)}"
+        return "约 ${formatDuration(duration)} 后恢复"
     }
 
-    return "Reset due"
+    return "正在恢复"
 }
 
 fun formatSource(source: String): String {
     return when (source) {
-        "endpoint" -> "Source: precise"
-        "ccusage" -> "Source: ccusage"
-        "cli" -> "Source: cli"
-        "" -> "Source: unknown"
-        else -> "Source: $source"
+        "endpoint" -> "精确数据"
+        "ccusage" -> "ccusage 估算"
+        "cli" -> "CLI 数据"
+        "" -> "来源未知"
+        else -> "来源：$source"
     }
 }
 
 fun formatSessionSummary(sessions: List<SessionStatus>): String {
     val active = sessions.firstOrNull { it.state == "running" || it.state == "waiting" }
-        ?: return "All sessions idle"
-    val provider = active.providerId.replaceFirstChar { it.uppercase() }
-    val project = active.projectPath.substringAfterLast('/').ifBlank { "unknown project" }
+        ?: return "当前没有运行中的会话"
+    val provider = formatProviderName(active.providerId)
+    val project = active.projectPath.substringAfterLast('/').ifBlank { "未知项目" }
     val state = when (active.state) {
-        "running" -> "running"
-        "waiting" -> "waiting"
+        "running" -> "正在运行"
+        "waiting" -> "等待确认"
         else -> active.state
     }
     return "$provider $state · $project"
+}
+
+fun formatProviderName(providerId: String?): String {
+    return when (providerId?.lowercase(Locale.US)) {
+        "claude" -> "Claude"
+        "codex" -> "Codex"
+        null, "" -> "未知服务"
+        else -> providerId.replaceFirstChar { it.uppercase(Locale.US) }
+    }
 }
 
 private fun formatTokenCount(value: Long): String {
@@ -74,8 +83,8 @@ private fun formatDuration(duration: Duration): String {
     val remainingMinutes = minutes % 60
 
     return if (hours > 0) {
-        "${hours}h ${remainingMinutes}m"
+        "${hours}小时${remainingMinutes}分钟"
     } else {
-        "${remainingMinutes}m"
+        "${remainingMinutes}分钟"
     }
 }

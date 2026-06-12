@@ -84,7 +84,7 @@ class OkHttpSettingsApi(
                 if (!response.isSuccessful) {
                     throw SettingsException(
                         parseErrorMessage(body)
-                            ?: "Settings request failed with HTTP ${response.code}",
+                            ?: "设置请求失败：HTTP ${response.code}",
                     )
                 }
                 return body
@@ -92,7 +92,7 @@ class OkHttpSettingsApi(
         } catch (exception: SettingsException) {
             throw exception
         } catch (exception: IOException) {
-            throw SettingsException("Cannot reach ${pairing.serverUrl}", exception)
+            throw SettingsException("无法连接 ${pairing.serverUrl}", exception)
         }
     }
 

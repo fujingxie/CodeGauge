@@ -82,7 +82,7 @@ private enum class MainTab(
     val label: String,
     val iconText: String,
 ) {
-    Dashboard("Dashboard", "D"),
-    Activity("Activity", "A"),
-    Settings("Settings", "S"),
+    Dashboard("仪表盘", "仪"),
+    Activity("活动", "动"),
+    Settings("设置", "设"),
 }

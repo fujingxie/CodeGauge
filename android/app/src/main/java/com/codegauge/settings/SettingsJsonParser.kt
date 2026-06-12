@@ -8,10 +8,10 @@ object SettingsJsonParser {
     fun parseSettings(body: String): AppSettings {
         try {
             val settings = JSONObject(body).optJSONObject("settings")
-                ?: throw SettingsException("Settings response did not include settings")
+                ?: throw SettingsException("设置响应缺少 settings 字段")
             return parseSettingsObject(settings)
         } catch (exception: JSONException) {
-            throw SettingsException("Settings response was not valid JSON", exception)
+            throw SettingsException("设置响应不是有效 JSON", exception)
         }
     }
 
@@ -33,7 +33,7 @@ object SettingsJsonParser {
                 }
             }
         } catch (exception: JSONException) {
-            throw SettingsException("Devices response was not valid JSON", exception)
+            throw SettingsException("设备响应不是有效 JSON", exception)
         }
     }
 
@@ -53,7 +53,7 @@ object SettingsJsonParser {
                 latestEventAt = root.optInstant("latest_event_at"),
             )
         } catch (exception: JSONException) {
-            throw SettingsException("Diagnostics response was not valid JSON", exception)
+            throw SettingsException("诊断响应不是有效 JSON", exception)
         }
     }
 

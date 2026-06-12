@@ -36,6 +36,7 @@ Last updated: 2026-06-12
 - 设置页前置: Companion 已实现鉴权 `/api/v1/diagnostics`，返回 Companion 标识、Provider/Session/Device 计数和最近事件时间。
 - 设置页: Android 已新增 Settings 底部 Tab，可读取和保存通知开关、额度阈值和采集间隔。
 - 设置页: Android 设置页可展示 Companion 诊断摘要和已配对设备列表。
+- Android UI: 已完成第一轮中文化和设计基线对齐，覆盖配对页、仪表盘、活动页、设置页、底部导航、错误提示、通知兜底文案和额度单位展示。
 
 ## 进行中 / 待处理项
 
@@ -84,6 +85,8 @@ Last updated: 2026-06-12
 - 设置页: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖设置 JSON 解析、PATCH body 和 Repository 行为。
 - 设置页: `./gradlew :android:app:assembleDebug` 通过。
 - 设置页: 修复点击 Settings 后 Compose 重组闪退；adb 复测 Dashboard → Settings 切换无 `AndroidRuntime` 崩溃。
+- Android UI: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过。
+- Android UI: adb 真机复测通过，已安装 debug APK 并截图检查 Dashboard / Activity / Settings 三页中文界面；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` 崩溃。
 
 ## 已知问题和技术债务
 
@@ -140,3 +143,4 @@ Last updated: 2026-06-12
 - 设置页前置 REST API 复用现有 Bearer 鉴权；设备列表响应只返回设备元数据，不返回 `device_pairings.token`。
 - 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
 - Android 设置页沿用现有 OkHttp + `org.json` 网络层，不额外引入 serialization/Ktor；保存时 PATCH 当前完整设置，减少字段级脏状态复杂度。
+- Android UI 第一轮对齐以 `CodeGauge-完整方案.md` 和真机截图为依据；Claude 设计分享页当前无法被自动化读取，后续如提供设计导出或完整截图，可继续做像素级对齐。

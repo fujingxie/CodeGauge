@@ -214,3 +214,13 @@
 - Added `STATUS.md` and `CHANGELOG.md` tracking files.
 - Verified `./gradlew :android:app:assembleDebug`.
 - Verified `./gradlew :android:app:testDebugUnitTest`.
+
+## 2026-06-12 - Android UI 中文化与设计基线
+
+- Localized Android visible UI copy across pairing, dashboard, activity, settings, bottom navigation, error messages, and notification fallbacks.
+- Updated quota formatting to show Chinese reset/usage text and `令牌` units instead of English quota text.
+- Normalized provider display names for Claude/Codex session rows and event details.
+- Enlarged dashboard quota percentage text to better match the glanceable card design.
+- Updated dashboard and notification formatter tests for the Chinese copy.
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb screenshots for Dashboard / Activity / Settings and no `AndroidRuntime` / `FATAL EXCEPTION` crashes in `logcat`.
