@@ -44,12 +44,19 @@ object WidgetFormatter {
                 }.thenBy { it.name },
             )
             .map { provider ->
+                val fiveHour = provider.window(WindowTypes.FiveHours)
+                val weekly = provider.window(WindowTypes.Weekly)
+                val mainWindow = provider.mainWindow(fiveHour, weekly)
                 WidgetProviderLine(
                     id = provider.id,
                     name = provider.name.ifBlank { provider.id },
-                    fiveHourText = formatWindow("5h", provider.window(WindowTypes.FiveHours)),
-                    weeklyText = formatWindow("周", provider.window(WindowTypes.Weekly)),
-                    resetText = formatReset(provider.window(WindowTypes.FiveHours)?.resetsAt, now),
+                    percentLeft = mainWindow?.percentLeft?.coerceIn(0, 100),
+                    percentText = mainWindow?.percentLeft?.coerceIn(0, 100)?.toString() ?: "-",
+                    windowLabel = mainWindow?.windowType?.windowLabel().orEmpty(),
+                    usageText = formatUsage(mainWindow),
+                    resetText = formatReset(mainWindow, now),
+                    fiveHourText = formatWindow("5h", fiveHour),
+                    weeklyText = formatWindow("周", weekly),
                 )
             }
 
@@ -61,13 +68,45 @@ object WidgetFormatter {
         )
     }
 
+    private fun ProviderStatus.mainWindow(
+        fiveHour: QuotaWindowStatus?,
+        weekly: QuotaWindowStatus?,
+    ): QuotaWindowStatus? {
+        return when (id.lowercase(Locale.US)) {
+            "codex" -> weekly?.takeIf { it.percentLeft != null } ?: fiveHour ?: weekly
+            else -> fiveHour ?: weekly
+        }
+    }
+
+    private fun String.windowLabel(): String {
+        return when (this) {
+            WindowTypes.FiveHours -> "5h"
+            WindowTypes.Weekly -> "周"
+            else -> "窗口"
+        }
+    }
+
     private fun formatWindow(label: String, window: QuotaWindowStatus?): String {
         val percentText = window?.percentLeft?.let { "${it.coerceIn(0, 100)}%" } ?: "未知"
         val usageText = window?.used?.let { "已用 ${formatTokenCount(it)}" } ?: "用量未知"
         return "$label $percentText · $usageText"
     }
 
-    private fun formatReset(resetsAt: Instant?, now: Instant): String {
+    private fun formatUsage(window: QuotaWindowStatus?): String {
+        return window?.used?.let { "已用 ${formatTokenCount(it)}" } ?: "数据不可用"
+    }
+
+    private fun formatReset(window: QuotaWindowStatus?, now: Instant): String {
+        val resetsAt = window?.resetsAt ?: return when (window?.windowType) {
+            WindowTypes.Weekly -> "重置未知"
+            WindowTypes.FiveHours -> "恢复未知"
+            else -> "时间未知"
+        }
+
+        return formatReset(resetsAt, window.windowType, now)
+    }
+
+    private fun formatReset(resetsAt: Instant?, windowType: String, now: Instant): String {
         if (resetsAt == null) {
             return "恢复时间未知"
         }
@@ -78,12 +117,23 @@ object WidgetFormatter {
         }
 
         val minutes = duration.toMinutes().coerceAtLeast(0)
-        val hours = minutes / 60
+        val days = minutes / (24 * 60)
+        val hours = (minutes % (24 * 60)) / 60
         val remainingMinutes = minutes % 60
-        return if (hours > 0) {
-            "${hours}h ${remainingMinutes}m 后恢复"
+        return if (windowType == WindowTypes.Weekly) {
+            if (days > 0) {
+                "${days}d ${hours}h 重置"
+            } else if (hours > 0) {
+                "${hours}h ${remainingMinutes}m 重置"
+            } else {
+                "${remainingMinutes}m 重置"
+            }
+        } else if (days > 0) {
+            "${days}d ${hours}h 后满血"
+        } else if (hours > 0) {
+            "${hours}h ${remainingMinutes}m 后满血"
         } else {
-            "${remainingMinutes}m 后恢复"
+            "${remainingMinutes}m 后满血"
         }
     }
 
@@ -97,4 +147,3 @@ object WidgetFormatter {
         }
     }
 }
-

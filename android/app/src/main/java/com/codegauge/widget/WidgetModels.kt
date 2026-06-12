@@ -12,8 +12,11 @@ data class CodeGaugeWidgetState(
 data class WidgetProviderLine(
     val id: String,
     val name: String,
+    val percentLeft: Int?,
+    val percentText: String,
+    val windowLabel: String,
+    val usageText: String,
+    val resetText: String,
     val fiveHourText: String,
     val weeklyText: String,
-    val resetText: String,
 )
-

@@ -30,9 +30,13 @@ class CodeGaugeWidgetStore(context: Context) {
                 JSONObject()
                     .put("id", provider.id)
                     .put("name", provider.name)
+                    .put("percent_left", provider.percentLeft)
+                    .put("percent_text", provider.percentText)
+                    .put("window_label", provider.windowLabel)
+                    .put("usage_text", provider.usageText)
+                    .put("reset_text", provider.resetText)
                     .put("five_hour_text", provider.fiveHourText)
-                    .put("weekly_text", provider.weeklyText)
-                    .put("reset_text", provider.resetText),
+                    .put("weekly_text", provider.weeklyText),
             )
         }
 
@@ -52,9 +56,20 @@ class CodeGaugeWidgetStore(context: Context) {
                     WidgetProviderLine(
                         id = item.optString("id"),
                         name = item.optString("name"),
+                        percentLeft = if (item.has("percent_left") && !item.isNull("percent_left")) {
+                            item.optInt("percent_left").coerceIn(0, 100)
+                        } else {
+                            null
+                        },
+                        percentText = item.optString("percent_text").takeIf { it.isNotBlank() }
+                            ?: item.optString("five_hour_text").percentFallback(),
+                        windowLabel = item.optString("window_label").takeIf { it.isNotBlank() }
+                            ?: item.optString("five_hour_text").substringBefore(' ', missingDelimiterValue = ""),
+                        usageText = item.optString("usage_text").takeIf { it.isNotBlank() }
+                            ?: item.optString("five_hour_text").substringAfter("· ", missingDelimiterValue = ""),
+                        resetText = item.optString("reset_text"),
                         fiveHourText = item.optString("five_hour_text"),
                         weeklyText = item.optString("weekly_text"),
-                        resetText = item.optString("reset_text"),
                     ),
                 )
             }
@@ -78,3 +93,9 @@ class CodeGaugeWidgetStore(context: Context) {
     }
 }
 
+private fun String.percentFallback(): String {
+    return split(' ')
+        .firstOrNull { it.endsWith('%') }
+        ?.removeSuffix("%")
+        ?: "-"
+}

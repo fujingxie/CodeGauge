@@ -259,3 +259,12 @@
 - Added a six-digit pairing-code visual input with full-field text focus and a design-matched primary action.
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb after clearing app data: discovered Companion, entered code `123456`, paired into Dashboard, checked manual input expansion, and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugePairing` crashes in `logcat`.
+
+## 2026-06-12 - Android Widget 高精度还原
+
+- Reworked the Glance desktop widget into a high-fidelity dark card with responsive compact and wide layouts.
+- Added structured widget cache fields for percent, active window, usage, and reset text with backward-compatible decoding of existing cached data.
+- Updated widget formatting to prefer Codex weekly precise quota when available and to show weekly reset time as `Xd Yh 重置`.
+- Kept the existing WorkManager refresh, stream-triggered refresh, and click-to-open behavior.
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb after reinstalling: opened the App to trigger natural widget refresh, checked the home-screen widget screenshot, and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` crashes in `logcat`.
