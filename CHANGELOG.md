@@ -1,5 +1,16 @@
 # CodeGauge Changelog
 
+## 2026-06-12 - Android settings screen
+
+- Added Android settings models, parser, API client, repository, and exception type.
+- Added `Settings` bottom tab alongside Dashboard and Activity.
+- Added a Compose settings screen for notification switches, warning/critical thresholds, collect interval, save/refresh actions, and pair-again.
+- Added Companion diagnostics and paired-device panels to the settings screen.
+- Wired `GET /settings`, `PATCH /settings`, `GET /devices`, and `GET /diagnostics` into Android.
+- Added tests for settings JSON parsing, PATCH request body creation, and repository behavior.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+
 ## 2026-06-12 - Settings prerequisite APIs
 
 - Added Companion `GET`/`PATCH /api/v1/settings` with Bearer auth.

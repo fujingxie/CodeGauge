@@ -18,14 +18,17 @@ import com.codegauge.activity.ActivityRepository
 import com.codegauge.activity.ActivityStreamClient
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.pairing.PairingRecord
+import com.codegauge.settings.SettingsRepository
 import com.codegauge.ui.activity.ActivityRoute
 import com.codegauge.ui.dashboard.DashboardRoute
+import com.codegauge.ui.settings.SettingsRoute
 
 @Composable
 fun MainTabsRoute(
     pairing: PairingRecord,
     dashboardRepository: DashboardRepository,
     activityRepository: ActivityRepository,
+    settingsRepository: SettingsRepository,
     streamClient: ActivityStreamClient,
     onClearPairing: () -> Unit,
 ) {
@@ -65,6 +68,11 @@ fun MainTabsRoute(
                     activityRepository = activityRepository,
                     streamClient = streamClient,
                 )
+                MainTab.Settings -> SettingsRoute(
+                    pairing = pairing,
+                    repository = settingsRepository,
+                    onClearPairing = onClearPairing,
+                )
             }
         }
     }
@@ -76,4 +84,5 @@ private enum class MainTab(
 ) {
     Dashboard("Dashboard", "D"),
     Activity("Activity", "A"),
+    Settings("Settings", "S"),
 }

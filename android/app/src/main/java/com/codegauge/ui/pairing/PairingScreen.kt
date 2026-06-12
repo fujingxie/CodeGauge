@@ -47,6 +47,7 @@ import com.codegauge.pairing.CompanionEndpoint
 import com.codegauge.pairing.PairingRecord
 import com.codegauge.pairing.PairingRepository
 import com.codegauge.pairing.parseManualEndpoint
+import com.codegauge.settings.SettingsRepository
 import com.codegauge.ui.main.MainTabsRoute
 import com.codegauge.widget.CodeGaugeWidgetScheduler
 import com.codegauge.widget.CodeGaugeWidgetUpdater
@@ -57,6 +58,7 @@ fun PairingRoute(
     repository: PairingRepository,
     dashboardRepository: DashboardRepository,
     activityRepository: ActivityRepository,
+    settingsRepository: SettingsRepository,
     streamClient: ActivityStreamClient,
     discovery: CompanionDiscovery,
     deviceName: String,
@@ -121,6 +123,7 @@ fun PairingRoute(
                 pairing = currentPairing,
                 dashboardRepository = dashboardRepository,
                 activityRepository = activityRepository,
+                settingsRepository = settingsRepository,
                 streamClient = streamClient,
                 onClearPairing = {
                     scope.launch {

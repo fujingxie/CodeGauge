@@ -34,6 +34,8 @@ Last updated: 2026-06-12
 - 设置页前置: Companion 已实现鉴权 `/api/v1/settings`，可读取默认设置并持久化通知开关、阈值和采集间隔。
 - 设置页前置: Companion 已实现鉴权 `/api/v1/devices`，按最近活动倒序返回已配对设备且不暴露 token。
 - 设置页前置: Companion 已实现鉴权 `/api/v1/diagnostics`，返回 Companion 标识、Provider/Session/Device 计数和最近事件时间。
+- 设置页: Android 已新增 Settings 底部 Tab，可读取和保存通知开关、额度阈值和采集间隔。
+- 设置页: Android 设置页可展示 Companion 诊断摘要和已配对设备列表。
 
 ## 进行中 / 待处理项
 
@@ -79,6 +81,8 @@ Last updated: 2026-06-12
 - T14: 临时 Companion 端到端 smoke 通过：`/status` 中 Codex `5h` 与 `weekly` 窗口显示 `source=endpoint`，weekly 保留 `ccusage` token used。
 - 设置页前置: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过。
 - 设置页前置: 临时 Companion smoke 通过：配对后可访问 `/settings`、PATCH 设置、查看 `/devices` 和 `/diagnostics`。
+- 设置页: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖设置 JSON 解析、PATCH body 和 Repository 行为。
+- 设置页: `./gradlew :android:app:assembleDebug` 通过。
 
 ## 已知问题和技术债务
 
@@ -99,8 +103,8 @@ Last updated: 2026-06-12
 - T7/T9 mDNS 和 Android NSD 依赖局域网、系统 Bonjour/mDNS 环境和路由器组播支持；已通过 `dns-sd` 和手机 App 手动验收，后续仍需保留手动回归。
 - T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
-- 设置页 Android UI 尚未接入 `/settings`、`/devices`、`/diagnostics`。
 - `/settings` 当前负责持久化偏好；Collector 采集间隔、stream alert 阈值和 Android 通知开关仍需后续接入运行时读取/热更新。
+- 设置页 Android UI 已接入 Companion 设置 API；尚未做手机手动验收。
 - T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
 - T14 当前只对 Codex 接入稳定的本地 app-server 精确源；Claude Code 目前没有同等级稳定的本地 usage/rate-limit 协议，仍使用 `ccusage` 主路径，避免硬编码私有接口。
 
@@ -135,3 +139,4 @@ Last updated: 2026-06-12
 - T14 Codex 精确源通过 `codex app-server --stdio` 调用 `account/rateLimits/read`，不读取或输出本地 token，不直接拼接私有 HTTP endpoint。
 - 设置页前置 REST API 复用现有 Bearer 鉴权；设备列表响应只返回设备元数据，不返回 `device_pairings.token`。
 - 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
+- Android 设置页沿用现有 OkHttp + `org.json` 网络层，不额外引入 serialization/Ktor；保存时 PATCH 当前完整设置，减少字段级脏状态复杂度。

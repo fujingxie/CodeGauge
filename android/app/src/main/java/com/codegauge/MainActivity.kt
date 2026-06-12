@@ -33,6 +33,13 @@ import com.codegauge.pairing.PairResponse
 import com.codegauge.pairing.PairingApi
 import com.codegauge.pairing.PairingRecord
 import com.codegauge.pairing.PairingRepository
+import com.codegauge.settings.AppSettings
+import com.codegauge.settings.CompanionDiagnostics
+import com.codegauge.settings.OkHttpSettingsApi
+import com.codegauge.settings.PairedDevice
+import com.codegauge.settings.SettingsApi
+import com.codegauge.settings.SettingsRepository
+import com.codegauge.settings.SettingsUpdate
 import com.codegauge.ui.pairing.PairingRoute
 import com.codegauge.ui.theme.CodeGaugeTheme
 import java.time.Instant
@@ -55,6 +62,9 @@ class MainActivity : ComponentActivity() {
             val activityRepository = remember {
                 ActivityRepository(OkHttpActivityApi())
             }
+            val settingsRepository = remember {
+                SettingsRepository(OkHttpSettingsApi())
+            }
             val streamClient = remember {
                 OkHttpActivityStreamClient()
             }
@@ -66,6 +76,7 @@ class MainActivity : ComponentActivity() {
                     repository = repository,
                     dashboardRepository = dashboardRepository,
                     activityRepository = activityRepository,
+                    settingsRepository = settingsRepository,
                     streamClient = streamClient,
                     discovery = discovery,
                     deviceName = defaultDeviceName(),
@@ -101,6 +112,7 @@ fun CodeGaugeApp(
     repository: PairingRepository,
     dashboardRepository: DashboardRepository,
     activityRepository: ActivityRepository,
+    settingsRepository: SettingsRepository,
     streamClient: ActivityStreamClient,
     discovery: CompanionDiscovery,
     deviceName: String,
@@ -109,6 +121,7 @@ fun CodeGaugeApp(
         repository = repository,
         dashboardRepository = dashboardRepository,
         activityRepository = activityRepository,
+        settingsRepository = settingsRepository,
         streamClient = streamClient,
         discovery = discovery,
         deviceName = deviceName,
@@ -123,6 +136,7 @@ private fun CodeGaugeAppPreview() {
             repository = PairingRepository(PreviewPairingApi, InMemoryPairingStore()),
             dashboardRepository = DashboardRepository(PreviewDashboardApi),
             activityRepository = ActivityRepository(PreviewActivityApi),
+            settingsRepository = SettingsRepository(PreviewSettingsApi),
             streamClient = PreviewStreamClient,
             discovery = NoopCompanionDiscovery,
             deviceName = "Preview Android",
@@ -152,6 +166,45 @@ private object PreviewDashboardApi : DashboardApi {
 private object PreviewActivityApi : ActivityApi {
     override suspend fun events(pairing: PairingRecord, limit: Int): List<ActivityEvent> {
         return emptyList()
+    }
+}
+
+private object PreviewSettingsApi : SettingsApi {
+    override suspend fun settings(pairing: PairingRecord): AppSettings {
+        return AppSettings(
+            notificationsEnabled = true,
+            warningThreshold = 80,
+            criticalThreshold = 95,
+            quotaResetNotifications = true,
+            taskDoneNotifications = true,
+            collectIntervalSeconds = 60,
+        )
+    }
+
+    override suspend fun updateSettings(
+        pairing: PairingRecord,
+        update: SettingsUpdate,
+    ): AppSettings {
+        return settings(pairing)
+    }
+
+    override suspend fun devices(pairing: PairingRecord): List<PairedDevice> {
+        return emptyList()
+    }
+
+    override suspend fun diagnostics(pairing: PairingRecord): CompanionDiagnostics {
+        return CompanionDiagnostics(
+            ok = true,
+            serverName = "CodeGauge Companion",
+            version = "dev",
+            serverTime = Instant.EPOCH,
+            providerCount = 2,
+            availableProviderCount = 2,
+            runningSessionCount = 0,
+            waitingSessionCount = 0,
+            pairedDeviceCount = 1,
+            latestEventAt = null,
+        )
     }
 }
 
