@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ type Store interface {
 	GetCodingSession(id string) (store.CodingSession, error)
 	ListCodingSessions() ([]store.CodingSession, error)
 	AddEvent(event store.Event) (int64, error)
+	ListEvents(limit int) ([]store.Event, error)
 	UpsertDevicePairing(device store.DevicePairing) error
 	GetDevicePairingByToken(token string) (store.DevicePairing, error)
 }
@@ -70,6 +72,10 @@ type QuotaResponse struct {
 	Providers []ProviderResponse `json:"providers"`
 }
 
+type EventsResponse struct {
+	Events []EventResponse `json:"events"`
+}
+
 type ProviderResponse struct {
 	ID        string                `json:"id"`
 	Name      string                `json:"name"`
@@ -93,6 +99,14 @@ type SessionResponse struct {
 	ProjectPath    string    `json:"project_path"`
 	State          string    `json:"state"`
 	LastActivityAt time.Time `json:"last_activity_at"`
+}
+
+type EventResponse struct {
+	ID         int64     `json:"id"`
+	Type       string    `json:"type"`
+	ProviderID *string   `json:"provider_id"`
+	Payload    string    `json:"payload"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type PairRequest struct {
@@ -146,6 +160,7 @@ func NewRouter(options Options) http.Handler {
 	mux.HandleFunc("/api/v1/pair", router.pair)
 	mux.HandleFunc("/api/v1/status", router.withAuth(router.status))
 	mux.HandleFunc("/api/v1/quota", router.withAuth(router.quota))
+	mux.HandleFunc("/api/v1/events", router.withAuth(router.events))
 	mux.HandleFunc("/api/v1/stream", router.withAuth(router.stream))
 	mux.HandleFunc("/api/v1/hooks/claude", router.claudeHook)
 	return mux
@@ -256,6 +271,23 @@ func (r *Router) quota(w http.ResponseWriter, req *http.Request) {
 
 	writeJSON(w, http.StatusOK, QuotaResponse{
 		Providers: providers,
+	})
+}
+
+func (r *Router) events(w http.ResponseWriter, req *http.Request) {
+	if !allowMethod(w, req, http.MethodGet) {
+		return
+	}
+
+	events, err := r.store.ListEvents(eventLimit(req))
+	if err != nil {
+		log.Printf("build events response: %v", err)
+		writeError(w, http.StatusInternalServerError, "could not read events")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, EventsResponse{
+		Events: eventResponses(events),
 	})
 }
 
@@ -400,6 +432,36 @@ func quotaWindowResponses(windows []store.QuotaWindow) []QuotaWindowResponse {
 	}
 
 	return response
+}
+
+func eventResponses(events []store.Event) []EventResponse {
+	response := make([]EventResponse, 0, len(events))
+	for _, event := range events {
+		response = append(response, EventResponse{
+			ID:         event.ID,
+			Type:       event.Type,
+			ProviderID: event.ProviderID,
+			Payload:    event.Payload,
+			CreatedAt:  event.CreatedAt,
+		})
+	}
+
+	return response
+}
+
+func eventLimit(req *http.Request) int {
+	value := req.URL.Query().Get("limit")
+	if value == "" {
+		return 50
+	}
+	limit, err := strconv.Atoi(value)
+	if err != nil || limit <= 0 {
+		return 50
+	}
+	if limit > 200 {
+		return 200
+	}
+	return limit
 }
 
 func bearerToken(value string) (string, bool) {

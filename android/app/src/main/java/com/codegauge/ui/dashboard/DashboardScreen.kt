@@ -65,6 +65,7 @@ import java.time.Instant
 fun DashboardRoute(
     pairing: PairingRecord,
     repository: DashboardRepository,
+    modifier: Modifier = Modifier,
     onClearPairing: () -> Unit,
 ) {
     var snapshot by remember(pairing.serverUrl, pairing.token) {
@@ -116,7 +117,7 @@ fun DashboardRoute(
     )
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .pullRefresh(pullRefreshState),
     ) {

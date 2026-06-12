@@ -85,6 +85,34 @@ func TestNotifyingStorePublishesQuotaUpdateAndThresholdAlert(t *testing.T) {
 	if alert.Severity != AlertSeverityWarning || alert.UsagePercent != 85 || alert.Threshold != 80 {
 		t.Fatalf("alert = %+v, want warning at 85/80", alert)
 	}
+
+	used = 10
+	if err := notifyingStore.UpsertQuotaWindow(store.QuotaWindow{
+		ProviderID: store.ProviderClaude,
+		WindowType: store.WindowTypeFiveHours,
+		Used:       &used,
+		Limit:      &limit,
+		Source:     store.SourceCCUsage,
+		UpdatedAt:  testStreamNow().Add(2 * time.Minute),
+	}); err != nil {
+		t.Fatalf("third UpsertQuotaWindow: %v", err)
+	}
+
+	resetQuotaMessage := receiveMessage(t, subscription.Messages())
+	if resetQuotaMessage.EventType != EventTypeQuotaUpdate {
+		t.Fatalf("EventType = %q, want %q", resetQuotaMessage.EventType, EventTypeQuotaUpdate)
+	}
+	resetAlertMessage := receiveMessage(t, subscription.Messages())
+	if resetAlertMessage.EventType != EventTypeAlert {
+		t.Fatalf("EventType = %q, want %q", resetAlertMessage.EventType, EventTypeAlert)
+	}
+	resetAlert, ok := resetAlertMessage.Data.(Alert)
+	if !ok {
+		t.Fatalf("reset alert data type = %T, want Alert", resetAlertMessage.Data)
+	}
+	if resetAlert.Severity != AlertSeverityReset || resetAlert.UsagePercent != 10 {
+		t.Fatalf("reset alert = %+v, want reset at 10", resetAlert)
+	}
 }
 
 func TestNotifyingStorePublishesSessionUpdate(t *testing.T) {
@@ -119,6 +147,43 @@ func TestNotifyingStorePublishesSessionUpdate(t *testing.T) {
 	}
 	if update.ProviderID != store.ProviderClaude || update.State != store.SessionStateDone || update.ProjectPath != "/work/codegauge" {
 		t.Fatalf("session update = %+v, want claude done /work/codegauge", update)
+	}
+}
+
+func TestNotifyingStorePublishesEventUpdate(t *testing.T) {
+	db := openStreamTestStore(t)
+	hub := NewHub()
+	subscription := hub.Subscribe()
+	defer subscription.Close()
+	notifyingStore := NewNotifyingStore(db, hub, Options{})
+
+	if err := notifyingStore.UpsertProvider(store.Provider{ID: store.ProviderClaude, Name: "Claude", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider: %v", err)
+	}
+	providerID := store.ProviderClaude
+	eventID, err := notifyingStore.AddEvent(store.Event{
+		ProviderID: &providerID,
+		Type:       store.EventSessionWaiting,
+		Payload:    `{"session_id":"session-1"}`,
+		CreatedAt:  testStreamNow(),
+	})
+	if err != nil {
+		t.Fatalf("AddEvent: %v", err)
+	}
+
+	message := receiveMessage(t, subscription.Messages())
+	if message.EventType != EventTypeEventUpdate {
+		t.Fatalf("EventType = %q, want %q", message.EventType, EventTypeEventUpdate)
+	}
+	update, ok := message.Data.(EventUpdate)
+	if !ok {
+		t.Fatalf("event update data type = %T, want EventUpdate", message.Data)
+	}
+	if update.ID != eventID || update.Type != store.EventSessionWaiting || update.ProviderID == nil || *update.ProviderID != store.ProviderClaude {
+		t.Fatalf("event update = %+v, want id/type/provider", update)
+	}
+	if update.Payload != `{"session_id":"session-1"}` {
+		t.Fatalf("Payload = %q, want hook payload", update.Payload)
 	}
 }
 

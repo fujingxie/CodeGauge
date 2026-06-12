@@ -15,6 +15,7 @@ type Store interface {
 	GetCodingSession(id string) (store.CodingSession, error)
 	ListCodingSessions() ([]store.CodingSession, error)
 	AddEvent(event store.Event) (int64, error)
+	ListEvents(limit int) ([]store.Event, error)
 	UpsertDevicePairing(device store.DevicePairing) error
 	GetDevicePairingByToken(token string) (store.DevicePairing, error)
 }
@@ -57,6 +58,14 @@ type Alert struct {
 	Threshold     int    `json:"threshold"`
 	UsagePercent  int    `json:"usage_percent"`
 	QuotaEventKey string `json:"quota_event_key"`
+}
+
+type EventUpdate struct {
+	ID         int64     `json:"id"`
+	ProviderID *string   `json:"provider_id"`
+	Type       string    `json:"type"`
+	Payload    string    `json:"payload"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 func NewNotifyingStore(inner Store, hub *Hub, options Options) *NotifyingStore {
@@ -126,7 +135,18 @@ func (s *NotifyingStore) ListCodingSessions() ([]store.CodingSession, error) {
 }
 
 func (s *NotifyingStore) AddEvent(event store.Event) (int64, error) {
-	return s.inner.AddEvent(event)
+	id, err := s.inner.AddEvent(event)
+	if err != nil {
+		return 0, err
+	}
+
+	event.ID = id
+	s.hub.Publish(Message{EventType: EventTypeEventUpdate, Data: eventUpdate(event)})
+	return id, nil
+}
+
+func (s *NotifyingStore) ListEvents(limit int) ([]store.Event, error) {
+	return s.inner.ListEvents(limit)
 }
 
 func (s *NotifyingStore) UpsertDevicePairing(device store.DevicePairing) error {
@@ -162,6 +182,9 @@ func (s *NotifyingStore) thresholdAlert(previous *store.QuotaWindow, current sto
 		}
 	}
 
+	if previous != nil && previousUsage >= s.warningThreshold && currentUsage < s.warningThreshold {
+		return alert(current, AlertSeverityReset, s.warningThreshold, currentUsage), true
+	}
 	if previousUsage < s.criticalThreshold && currentUsage >= s.criticalThreshold {
 		return alert(current, AlertSeverityCritical, s.criticalThreshold, currentUsage), true
 	}
@@ -212,6 +235,16 @@ func alert(window store.QuotaWindow, severity string, threshold int, usagePercen
 		Threshold:     threshold,
 		UsagePercent:  usagePercent,
 		QuotaEventKey: window.ProviderID + ":" + window.WindowType + ":" + severity,
+	}
+}
+
+func eventUpdate(event store.Event) EventUpdate {
+	return EventUpdate{
+		ID:         event.ID,
+		ProviderID: event.ProviderID,
+		Type:       event.Type,
+		Payload:    event.Payload,
+		CreatedAt:  event.CreatedAt,
 	}
 }
 

@@ -34,22 +34,28 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.codegauge.activity.ActivityRepository
+import com.codegauge.activity.ActivityStreamClient
 import com.codegauge.dashboard.DashboardRepository
+import com.codegauge.listener.CodeGaugeListenerService
 import com.codegauge.pairing.CompanionDiscovery
 import com.codegauge.pairing.CompanionEndpoint
 import com.codegauge.pairing.PairingRecord
 import com.codegauge.pairing.PairingRepository
 import com.codegauge.pairing.parseManualEndpoint
-import com.codegauge.ui.dashboard.DashboardRoute
+import com.codegauge.ui.main.MainTabsRoute
 import kotlinx.coroutines.launch
 
 @Composable
 fun PairingRoute(
     repository: PairingRepository,
     dashboardRepository: DashboardRepository,
+    activityRepository: ActivityRepository,
+    streamClient: ActivityStreamClient,
     discovery: CompanionDiscovery,
     deviceName: String,
 ) {
@@ -61,6 +67,7 @@ fun PairingRoute(
     var pairCode by remember { mutableStateOf("") }
     var isPairing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(repository) {
@@ -83,6 +90,17 @@ fun PairingRoute(
         }
     }
 
+    LaunchedEffect(isLoading, savedPairing?.token) {
+        if (isLoading) {
+            return@LaunchedEffect
+        }
+        if (savedPairing == null) {
+            CodeGaugeListenerService.stop(context)
+        } else {
+            CodeGaugeListenerService.start(context)
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -93,9 +111,11 @@ fun PairingRoute(
                 Header()
                 LoadingPanel()
             }
-            currentPairing != null -> DashboardRoute(
+            currentPairing != null -> MainTabsRoute(
                 pairing = currentPairing,
-                repository = dashboardRepository,
+                dashboardRepository = dashboardRepository,
+                activityRepository = activityRepository,
+                streamClient = streamClient,
                 onClearPairing = {
                     scope.launch {
                         repository.clearPairing()

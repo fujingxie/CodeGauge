@@ -143,6 +143,61 @@ func TestQuotaUsesBearerToken(t *testing.T) {
 	}
 }
 
+func TestEventsUsesBearerTokenAndHonorsLimit(t *testing.T) {
+	db := openServerTestStore(t)
+	if err := db.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", testNow())); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+	if err := db.UpsertProvider(store.Provider{ID: store.ProviderClaude, Name: "Claude", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider: %v", err)
+	}
+	providerID := store.ProviderClaude
+	for _, event := range []store.Event{
+		{ProviderID: &providerID, Type: store.EventSessionStart, Payload: `{"session_id":"first"}`, CreatedAt: testNow().Add(-2 * time.Minute)},
+		{ProviderID: &providerID, Type: store.EventSessionWaiting, Payload: `{"session_id":"second"}`, CreatedAt: testNow().Add(-time.Minute)},
+		{ProviderID: &providerID, Type: store.EventSessionDone, Payload: `{"session_id":"third"}`, CreatedAt: testNow()},
+	} {
+		if _, err := db.AddEvent(event); err != nil {
+			t.Fatalf("AddEvent: %v", err)
+		}
+	}
+	router := newTestRouterWithStore(t, db)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=2", nil)
+	req.Header.Set("Authorization", "Bearer token-test")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body EventsResponse
+	decodeJSON(t, rec, &body)
+	if len(body.Events) != 2 {
+		t.Fatalf("events length = %d, want 2", len(body.Events))
+	}
+	if body.Events[0].Type != store.EventSessionDone || body.Events[1].Type != store.EventSessionWaiting {
+		t.Fatalf("event order = %q, %q; want newest first", body.Events[0].Type, body.Events[1].Type)
+	}
+	if body.Events[0].ProviderID == nil || *body.Events[0].ProviderID != store.ProviderClaude {
+		t.Fatalf("provider_id = %v, want claude", body.Events[0].ProviderID)
+	}
+}
+
+func TestEventsRequiresBearerToken(t *testing.T) {
+	router := newTestRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestPairRejectsWrongCode(t *testing.T) {
 	router := newTestRouter(t)
 	req := httptest.NewRequest(
@@ -296,9 +351,7 @@ func TestStreamReceivesSessionUpdateFromClaudeHook(t *testing.T) {
 		EventType string         `json:"event_type"`
 		Data      map[string]any `json:"data"`
 	}
-	if err := conn.ReadJSON(&message); err != nil {
-		t.Fatalf("ReadJSON: %v", err)
-	}
+	readStreamMessage(t, conn, &message)
 	if message.EventType != stream.EventTypeSessionUpdate {
 		t.Fatalf("event_type = %q, want %q", message.EventType, stream.EventTypeSessionUpdate)
 	}
@@ -307,6 +360,21 @@ func TestStreamReceivesSessionUpdateFromClaudeHook(t *testing.T) {
 	}
 	if message.Data["project_path"] != "/work/codegauge" || message.Data["state"] != store.SessionStateDone {
 		t.Fatalf("data = %+v, want /work/codegauge done", message.Data)
+	}
+
+	var eventMessage struct {
+		EventType string         `json:"event_type"`
+		Data      map[string]any `json:"data"`
+	}
+	readStreamMessage(t, conn, &eventMessage)
+	if eventMessage.EventType != stream.EventTypeEventUpdate {
+		t.Fatalf("event_type = %q, want %q", eventMessage.EventType, stream.EventTypeEventUpdate)
+	}
+	if eventMessage.Data["type"] != store.EventSessionDone || eventMessage.Data["provider_id"] != store.ProviderClaude {
+		t.Fatalf("event data = %+v, want claude session_done", eventMessage.Data)
+	}
+	if !strings.Contains(fmt.Sprint(eventMessage.Data["payload"]), `"hook_event_name":"Stop"`) {
+		t.Fatalf("payload = %v, want Stop hook payload", eventMessage.Data["payload"])
 	}
 }
 
@@ -421,4 +489,11 @@ func decodeJSON(t *testing.T, rec *httptest.ResponseRecorder, target any) {
 
 func webSocketURL(serverURL string, path string) string {
 	return fmt.Sprintf("ws%s%s", strings.TrimPrefix(serverURL, "http"), path)
+}
+
+func readStreamMessage(t *testing.T, conn *websocket.Conn, target any) {
+	t.Helper()
+	if err := conn.ReadJSON(target); err != nil {
+		t.Fatalf("ReadJSON: %v", err)
+	}
 }

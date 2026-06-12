@@ -5,10 +5,12 @@ import "sync"
 const (
 	EventTypeQuotaUpdate   = "quota_update"
 	EventTypeSessionUpdate = "session_update"
+	EventTypeEventUpdate   = "event_update"
 	EventTypeAlert         = "alert"
 
 	AlertSeverityWarning  = "warning"
 	AlertSeverityCritical = "critical"
+	AlertSeverityReset    = "reset"
 )
 
 type Message struct {

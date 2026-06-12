@@ -1,5 +1,31 @@
 # CodeGauge Changelog
 
+## 2026-06-12 - T12 foreground listener and notifications
+
+- Added Android foreground listener service that reads the encrypted pairing record and keeps `/api/v1/stream` connected.
+- Added listener and event notification channels.
+- Added Chinese notifications for quota alerts, quota recovery, task completion, and waiting-for-confirmation session updates.
+- Added reconnect loop with backoff after WebSocket disconnects.
+- Added notification mapper tests for waiting, done, warning/critical, reset, and ignored messages.
+- Added quota recovery alert publishing when usage drops back below the warning threshold.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+- Verified manually on phone that foreground listening and hook notifications work.
+
+## 2026-06-12 - T11 Android activity
+
+- Added authenticated Companion `GET /api/v1/events?limit=...`.
+- Added WebSocket `event_update` messages from `NotifyingStore.AddEvent`.
+- Added Android activity models, `/events` client, stream parser, and stream client.
+- Added Dashboard / Activity bottom tabs.
+- Added Activity screen with current sessions, waiting-session highlight, event stream, pull refresh, and live WebSocket updates.
+- Added tests for event history parsing, stream `event_update`, stream `session_update`, and stream `alert` parsing.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+- Verified manually on phone with Claude `Stop` and `Notification` hook payloads.
+
 ## 2026-06-11 - T10 Android dashboard
 
 - Added Android dashboard models, `/status` parser, authenticated OkHttp client, and dashboard repository.

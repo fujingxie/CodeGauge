@@ -1,12 +1,22 @@
 package com.codegauge
 
+import android.Manifest
 import android.os.Bundle
 import android.os.Build
+import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.codegauge.activity.ActivityApi
+import com.codegauge.activity.ActivityEvent
+import com.codegauge.activity.ActivityRepository
+import com.codegauge.activity.ActivityStreamClient
+import com.codegauge.activity.ActivityStreamConnection
+import com.codegauge.activity.ActivityStreamMessage
+import com.codegauge.activity.OkHttpActivityApi
+import com.codegauge.activity.OkHttpActivityStreamClient
 import com.codegauge.dashboard.DashboardApi
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.dashboard.DashboardSnapshot
@@ -30,6 +40,7 @@ import java.time.Instant
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionIfNeeded()
         val appContext = applicationContext
         setContent {
             val repository = remember {
@@ -41,6 +52,12 @@ class MainActivity : ComponentActivity() {
             val dashboardRepository = remember {
                 DashboardRepository(OkHttpDashboardApi())
             }
+            val activityRepository = remember {
+                ActivityRepository(OkHttpActivityApi())
+            }
+            val streamClient = remember {
+                OkHttpActivityStreamClient()
+            }
             val discovery = remember {
                 NsdCompanionDiscovery(appContext)
             }
@@ -48,6 +65,8 @@ class MainActivity : ComponentActivity() {
                 CodeGaugeApp(
                     repository = repository,
                     dashboardRepository = dashboardRepository,
+                    activityRepository = activityRepository,
+                    streamClient = streamClient,
                     discovery = discovery,
                     deviceName = defaultDeviceName(),
                 )
@@ -61,18 +80,36 @@ class MainActivity : ComponentActivity() {
             .joinToString(" ")
             .ifBlank { "Android" }
     }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return
+        }
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NotificationPermissionRequestCode)
+    }
+
+    companion object {
+        private const val NotificationPermissionRequestCode = 2001
+    }
 }
 
 @Composable
 fun CodeGaugeApp(
     repository: PairingRepository,
     dashboardRepository: DashboardRepository,
+    activityRepository: ActivityRepository,
+    streamClient: ActivityStreamClient,
     discovery: CompanionDiscovery,
     deviceName: String,
 ) {
     PairingRoute(
         repository = repository,
         dashboardRepository = dashboardRepository,
+        activityRepository = activityRepository,
+        streamClient = streamClient,
         discovery = discovery,
         deviceName = deviceName,
     )
@@ -85,6 +122,8 @@ private fun CodeGaugeAppPreview() {
         CodeGaugeApp(
             repository = PairingRepository(PreviewPairingApi, InMemoryPairingStore()),
             dashboardRepository = DashboardRepository(PreviewDashboardApi),
+            activityRepository = ActivityRepository(PreviewActivityApi),
+            streamClient = PreviewStreamClient,
             discovery = NoopCompanionDiscovery,
             deviceName = "Preview Android",
         )
@@ -107,5 +146,22 @@ private object PreviewDashboardApi : DashboardApi {
             sessions = emptyList(),
             serverTime = Instant.EPOCH,
         )
+    }
+}
+
+private object PreviewActivityApi : ActivityApi {
+    override suspend fun events(pairing: PairingRecord, limit: Int): List<ActivityEvent> {
+        return emptyList()
+    }
+}
+
+private object PreviewStreamClient : ActivityStreamClient {
+    override fun connect(
+        pairing: PairingRecord,
+        onMessage: (ActivityStreamMessage) -> Unit,
+        onFailure: (Throwable) -> Unit,
+        onClosed: () -> Unit,
+    ): ActivityStreamConnection {
+        return ActivityStreamConnection {}
     }
 }
