@@ -10,6 +10,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "")
 	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "")
+	t.Setenv("CODEGAUGE_CODEX_PATH", "")
 	t.Setenv("CODEGAUGE_DB_PATH", "")
 	t.Setenv("CODEGAUGE_PAIR_CODE", "")
 	t.Setenv("CODEGAUGE_SERVER_NAME", "")
@@ -41,6 +42,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.CCUsagePath != "ccusage" {
 		t.Fatalf("CCUsagePath = %q, want ccusage", cfg.CCUsagePath)
 	}
+	if cfg.CodexPath != defaultCodexPath() {
+		t.Fatalf("CodexPath = %q, want %q", cfg.CodexPath, defaultCodexPath())
+	}
 	if cfg.DatabasePath == "" {
 		t.Fatal("DatabasePath is empty, want default path")
 	}
@@ -63,6 +67,7 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("CODEGAUGE_WARNING_THRESHOLD", "70")
 	t.Setenv("CODEGAUGE_CRITICAL_THRESHOLD", "90")
 	t.Setenv("CODEGAUGE_CCUSAGE_PATH", "/opt/bin/ccusage")
+	t.Setenv("CODEGAUGE_CODEX_PATH", "/opt/bin/codex")
 	t.Setenv("CODEGAUGE_DB_PATH", "/tmp/codegauge.db")
 	t.Setenv("CODEGAUGE_PAIR_CODE", "481920")
 	t.Setenv("CODEGAUGE_SERVER_NAME", "Dev Mac")
@@ -93,6 +98,9 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	}
 	if cfg.CCUsagePath != "/opt/bin/ccusage" {
 		t.Fatalf("CCUsagePath = %q, want /opt/bin/ccusage", cfg.CCUsagePath)
+	}
+	if cfg.CodexPath != "/opt/bin/codex" {
+		t.Fatalf("CodexPath = %q, want /opt/bin/codex", cfg.CodexPath)
 	}
 	if cfg.DatabasePath != "/tmp/codegauge.db" {
 		t.Fatalf("DatabasePath = %q, want /tmp/codegauge.db", cfg.DatabasePath)

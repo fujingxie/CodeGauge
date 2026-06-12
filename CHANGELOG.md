@@ -1,5 +1,18 @@
 # CodeGauge Changelog
 
+## 2026-06-12 - T14 precise Codex quota source
+
+- Added optional Collector `PreciseSource` support that runs after `ccusage` and does not break fallback collection when it fails.
+- Added Codex app-server precise source using `codex app-server --stdio` and `account/rateLimits/read`.
+- Added parsing for Codex primary 5h and secondary weekly windows, mapping used percent to `percent_left` and reset epoch to `resets_at`.
+- Preserved existing `ccusage` used/limit values when precise endpoint windows omit them.
+- Added `CODEGAUGE_CODEX_PATH`, defaulting to `/Applications/Codex.app/Contents/Resources/codex` when available.
+- Added unit tests for precise window merging, endpoint failure fallback, and Codex rate-limit parsing.
+- Added skipped-by-default real Codex app-server integration test.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified real Codex rate-limit collection with `CODEGAUGE_REAL_CODEX_PATH=/Applications/Codex.app/Contents/Resources/codex`.
+- Verified with a temporary Companion that `/status` reports Codex `5h` and `weekly` windows as `source=endpoint`.
+
 ## 2026-06-12 - T13 Glance widget
 
 - Added a Glance home-screen widget for CodeGauge quota status.

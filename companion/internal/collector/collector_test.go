@@ -162,6 +162,152 @@ func TestCollectOnceWritesProviderWindows(t *testing.T) {
 	}
 }
 
+func TestCollectOnceAppliesPreciseWindowsAfterCCUsage(t *testing.T) {
+	db := openTestStore(t)
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	reset := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	percentLeft := 26
+	runner := &fakeRunner{
+		outputs: successfulCCUsageOutputs(),
+	}
+	collector := New(db, Options{
+		CCUsagePath: "ccusage",
+		Runner:      runner,
+		Now:         func() time.Time { return now },
+		PreciseSources: []PreciseSource{
+			fakePreciseSource{
+				windows: []store.QuotaWindow{
+					{
+						ProviderID:  store.ProviderCodex,
+						WindowType:  store.WindowTypeWeekly,
+						PercentLeft: &percentLeft,
+						ResetsAt:    &reset,
+						Source:      store.SourceEndpoint,
+						UpdatedAt:   now,
+					},
+				},
+			},
+		},
+	})
+
+	if err := collector.CollectOnce(context.Background()); err != nil {
+		t.Fatalf("CollectOnce: %v", err)
+	}
+
+	windows, err := db.ListQuotaWindows(store.ProviderCodex)
+	if err != nil {
+		t.Fatalf("ListQuotaWindows codex: %v", err)
+	}
+	if len(windows) != 1 {
+		t.Fatalf("codex windows length = %d, want 1", len(windows))
+	}
+
+	window := windows[0]
+	assertIntPtr(t, "PercentLeft", window.PercentLeft, percentLeft)
+	assertInt64Ptr(t, "Used", window.Used, 800)
+	if window.Source != store.SourceEndpoint {
+		t.Fatalf("Source = %q, want endpoint", window.Source)
+	}
+	if window.ResetsAt == nil || !window.ResetsAt.Equal(reset) {
+		t.Fatalf("ResetsAt = %v, want %s", window.ResetsAt, reset)
+	}
+}
+
+func TestCollectOnceIgnoresPreciseSourceFailure(t *testing.T) {
+	db := openTestStore(t)
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	runner := &fakeRunner{
+		outputs: successfulCCUsageOutputs(),
+	}
+	collector := New(db, Options{
+		CCUsagePath: "ccusage",
+		Runner:      runner,
+		Now:         func() time.Time { return now },
+		PreciseSources: []PreciseSource{
+			fakePreciseSource{err: errors.New("endpoint unavailable")},
+		},
+	})
+
+	if err := collector.CollectOnce(context.Background()); err != nil {
+		t.Fatalf("CollectOnce: %v", err)
+	}
+
+	windows, err := db.ListQuotaWindows(store.ProviderCodex)
+	if err != nil {
+		t.Fatalf("ListQuotaWindows codex: %v", err)
+	}
+	if len(windows) != 1 {
+		t.Fatalf("codex windows length = %d, want 1", len(windows))
+	}
+	if windows[0].Source != store.SourceCCUsage {
+		t.Fatalf("Source = %q, want ccusage fallback", windows[0].Source)
+	}
+	if windows[0].PercentLeft != nil {
+		t.Fatalf("PercentLeft = %v, want nil from ccusage fallback", *windows[0].PercentLeft)
+	}
+}
+
+func TestParseCodexRateLimitsMapsPrimaryAndSecondaryWindows(t *testing.T) {
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	output := []byte(`{
+	  "rateLimits": {
+	    "limitId": "codex",
+	    "primary": {
+	      "usedPercent": 74,
+	      "windowDurationMins": 300,
+	      "resetsAt": 1781244343
+	    },
+	    "secondary": {
+	      "usedPercent": 43,
+	      "windowDurationMins": 10080,
+	      "resetsAt": 1781747964
+	    }
+	  },
+	  "rateLimitsByLimitId": {
+	    "codex": {
+	      "limitId": "codex",
+	      "primary": {
+	        "usedPercent": 74,
+	        "windowDurationMins": 300,
+	        "resetsAt": 1781244343
+	      },
+	      "secondary": {
+	        "usedPercent": 43,
+	        "windowDurationMins": 10080,
+	        "resetsAt": 1781747964
+	      }
+	    }
+	  }
+	}`)
+
+	windows, err := parseCodexRateLimits(output, now)
+	if err != nil {
+		t.Fatalf("parseCodexRateLimits: %v", err)
+	}
+	if len(windows) != 2 {
+		t.Fatalf("windows length = %d, want 2", len(windows))
+	}
+
+	assertIntPtr(t, "5h PercentLeft", windows[0].PercentLeft, 26)
+	if windows[0].ProviderID != store.ProviderCodex || windows[0].WindowType != store.WindowTypeFiveHours {
+		t.Fatalf("first window identity = %s/%s, want codex/5h", windows[0].ProviderID, windows[0].WindowType)
+	}
+	if windows[0].Source != store.SourceEndpoint {
+		t.Fatalf("first Source = %q, want endpoint", windows[0].Source)
+	}
+	if windows[0].ResetsAt == nil || windows[0].ResetsAt.Unix() != 1781244343 {
+		t.Fatalf("first ResetsAt = %v, want unix 1781244343", windows[0].ResetsAt)
+	}
+
+	assertIntPtr(t, "weekly PercentLeft", windows[1].PercentLeft, 57)
+	if windows[1].ProviderID != store.ProviderCodex || windows[1].WindowType != store.WindowTypeWeekly {
+		t.Fatalf("second window identity = %s/%s, want codex/weekly", windows[1].ProviderID, windows[1].WindowType)
+	}
+	if windows[1].ResetsAt == nil || windows[1].ResetsAt.Unix() != 1781747964 {
+		t.Fatalf("second ResetsAt = %v, want unix 1781747964", windows[1].ResetsAt)
+	}
+}
+
 func TestCollectOnceMarksProvidersUnavailableWhenCommandsFail(t *testing.T) {
 	db := openTestStore(t)
 	runner := &fakeRunner{err: errors.New("ccusage missing")}
@@ -248,11 +394,62 @@ func assertInt64Ptr(t *testing.T, name string, got *int64, want int64) {
 	}
 }
 
+func assertIntPtr(t *testing.T, name string, got *int, want int) {
+	t.Helper()
+	if got == nil {
+		t.Fatalf("%s = nil, want %d", name, want)
+	}
+	if *got != want {
+		t.Fatalf("%s = %d, want %d", name, *got, want)
+	}
+}
+
+func successfulCCUsageOutputs() map[string][]byte {
+	return map[string][]byte{
+		"ccusage claude blocks --json --recent --offline --token-limit max": []byte(`{
+		  "blocks": [
+		    {
+		      "id": "active",
+		      "isActive": true,
+		      "isGap": false,
+		      "endTime": "2026-06-12T15:00:00.000Z",
+		      "totalTokens": 400
+		    }
+		  ]
+		}`),
+		"ccusage claude daily --json --offline": []byte(`{
+		  "daily": [
+		    {"date": "2026-06-11", "totalTokens": 100},
+		    {"date": "2026-06-12", "totalTokens": 200}
+		  ]
+		}`),
+		"ccusage codex daily --json --offline": []byte(`{
+		  "daily": [
+		    {"date": "2026-06-10", "totalTokens": 300},
+		    {"date": "2026-06-12", "totalTokens": 500}
+		  ]
+		}`),
+	}
+}
+
 type fakeRunner struct {
 	outputs   map[string][]byte
 	err       error
 	commands  []string
 	onCommand func(count int)
+}
+
+type fakePreciseSource struct {
+	windows []store.QuotaWindow
+	err     error
+}
+
+func (s fakePreciseSource) Collect(_ context.Context, _ time.Time) ([]store.QuotaWindow, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return s.windows, nil
 }
 
 func (r *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {

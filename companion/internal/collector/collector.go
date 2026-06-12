@@ -15,23 +15,30 @@ import (
 type Store interface {
 	UpsertProvider(provider store.Provider) error
 	UpsertQuotaWindow(window store.QuotaWindow) error
+	ListQuotaWindows(providerID string) ([]store.QuotaWindow, error)
 }
 
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
+type PreciseSource interface {
+	Collect(ctx context.Context, now time.Time) ([]store.QuotaWindow, error)
+}
+
 type Options struct {
-	CCUsagePath string
-	Runner      Runner
-	Now         func() time.Time
+	CCUsagePath    string
+	Runner         Runner
+	Now            func() time.Time
+	PreciseSources []PreciseSource
 }
 
 type Collector struct {
-	store       Store
-	ccusagePath string
-	runner      Runner
-	now         func() time.Time
+	store          Store
+	ccusagePath    string
+	runner         Runner
+	now            func() time.Time
+	preciseSources []PreciseSource
 }
 
 func New(store Store, options Options) *Collector {
@@ -51,10 +58,11 @@ func New(store Store, options Options) *Collector {
 	}
 
 	return &Collector{
-		store:       store,
-		ccusagePath: ccusagePath,
-		runner:      runner,
-		now:         now,
+		store:          store,
+		ccusagePath:    ccusagePath,
+		runner:         runner,
+		now:            now,
+		preciseSources: options.PreciseSources,
 	}
 }
 
@@ -83,6 +91,10 @@ func (c *Collector) CollectOnce(ctx context.Context) error {
 		Name:      "Codex",
 		Available: codexAvailable,
 	}); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := c.collectPrecise(ctx, now); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -186,6 +198,80 @@ func (c *Collector) collectCodex(ctx context.Context, now time.Time) (bool, erro
 	}
 
 	return true, nil
+}
+
+func (c *Collector) collectPrecise(ctx context.Context, now time.Time) error {
+	var errs []error
+	for _, source := range c.preciseSources {
+		windows, err := source.Collect(ctx, now)
+		if err != nil {
+			log.Printf("precise quota source failed: %v", err)
+			continue
+		}
+
+		for _, window := range windows {
+			if window.ProviderID == "" || window.WindowType == "" {
+				continue
+			}
+			window.Source = store.SourceEndpoint
+			if window.UpdatedAt.IsZero() {
+				window.UpdatedAt = now.UTC()
+			}
+			merged, err := c.mergePreciseWindow(window)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if err := c.store.UpsertProvider(providerForWindow(merged)); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if err := c.store.UpsertQuotaWindow(merged); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func (c *Collector) mergePreciseWindow(window store.QuotaWindow) (store.QuotaWindow, error) {
+	existingWindows, err := c.store.ListQuotaWindows(window.ProviderID)
+	if err != nil {
+		return store.QuotaWindow{}, err
+	}
+
+	for _, existing := range existingWindows {
+		if existing.WindowType != window.WindowType {
+			continue
+		}
+		if window.PercentLeft == nil {
+			window.PercentLeft = existing.PercentLeft
+		}
+		if window.Used == nil {
+			window.Used = existing.Used
+		}
+		if window.Limit == nil {
+			window.Limit = existing.Limit
+		}
+		if window.ResetsAt == nil {
+			window.ResetsAt = existing.ResetsAt
+		}
+		break
+	}
+
+	return window, nil
+}
+
+func providerForWindow(window store.QuotaWindow) store.Provider {
+	switch window.ProviderID {
+	case store.ProviderClaude:
+		return store.Provider{ID: store.ProviderClaude, Name: "Claude", Available: true}
+	case store.ProviderCodex:
+		return store.Provider{ID: store.ProviderCodex, Name: "Codex", Available: true}
+	default:
+		return store.Provider{ID: window.ProviderID, Name: window.ProviderID, Available: true}
+	}
 }
 
 type ExecRunner struct{}

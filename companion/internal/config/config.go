@@ -15,6 +15,7 @@ type Config struct {
 	WarningThreshold       int
 	CriticalThreshold      int
 	CCUsagePath            string
+	CodexPath              string
 	DatabasePath           string
 	PairCode               string
 	ServerName             string
@@ -30,6 +31,7 @@ func Load() (Config, error) {
 		WarningThreshold:       80,
 		CriticalThreshold:      95,
 		CCUsagePath:            stringWithDefault("CODEGAUGE_CCUSAGE_PATH", "ccusage"),
+		CodexPath:              stringWithDefault("CODEGAUGE_CODEX_PATH", defaultCodexPath()),
 		DatabasePath:           stringWithDefault("CODEGAUGE_DB_PATH", defaultDatabasePath()),
 		PairCode:               os.Getenv("CODEGAUGE_PAIR_CODE"),
 		ServerName:             stringWithDefault("CODEGAUGE_SERVER_NAME", "CodeGauge Companion"),
@@ -136,6 +138,14 @@ func defaultDatabasePath() string {
 		return "codegauge.db"
 	}
 	return filepath.Join(configDir, "CodeGauge", "codegauge.db")
+}
+
+func defaultCodexPath() string {
+	const macAppPath = "/Applications/Codex.app/Contents/Resources/codex"
+	if _, err := os.Stat(macAppPath); err == nil {
+		return macAppPath
+	}
+	return "codex"
 }
 
 func isSixDigitCode(value string) bool {

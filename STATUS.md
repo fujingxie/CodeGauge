@@ -29,6 +29,8 @@ Last updated: 2026-06-12
 - T12: Android 已实现前台监听服务，持有 `/stream` WebSocket，收到额度 alert、任务完成、等待确认时发送中文通知，并支持断线自动重连。
 - T13: Android 已实现 Glance 桌面小组件，显示 Claude/Codex 额度、恢复倒计时和更新时间，支持点击打开 App。
 - T13: 小组件会通过 WorkManager 定时刷新，并在前台监听服务收到 `/stream` 推送时主动刷新。
+- T14: Companion 已实现 Codex 额度精确化增强，通过 Codex app-server 本地协议读取 5h/weekly 使用百分比和 reset time，并把精确窗口标记为 `source=endpoint`。
+- T14: 精确源失败时会记录日志并回落到 `ccusage` 数据，不影响 Companion 主采集流程。
 
 ## 进行中 / 待处理项
 
@@ -69,6 +71,9 @@ Last updated: 2026-06-12
 - T13: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖小组件额度文案格式化。
 - T13: `./gradlew :android:app:assembleDebug` 通过。
 - T13: 手机手动验收通过：桌面添加 CodeGauge 小组件后能显示真实额度，点击可打开 App，推送触发后可刷新。
+- T14: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过。
+- T14: `CODEGAUGE_REAL_CODEX_PATH=/Applications/Codex.app/Contents/Resources/codex go test ./internal/collector -run TestRealCodexAppServerCollectsRateLimits -count=1` 通过。
+- T14: 临时 Companion 端到端 smoke 通过：`/status` 中 Codex `5h` 与 `weekly` 窗口显示 `source=endpoint`，weekly 保留 `ccusage` token used。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
@@ -78,6 +83,7 @@ Last updated: 2026-06-12
 - 本机 `8765` 端口当前已有 `python3.1` 进程监听；T1 验收改用 `CODEGAUGE_PORT=18765`，默认配置仍保持 `8765`。
 - `modernc.org/sqlite` 依赖通过 `GOPROXY=https://goproxy.cn,direct` 拉取；默认 `proxy.golang.org` 在本机网络下超时。
 - Codex shell 的 PATH 可能看不到 nvm/.local 安装目录；运行 Companion 时如找不到 `ccusage`，需要设置 `CODEGAUGE_CCUSAGE_PATH` 为 `command -v ccusage` 的结果。
+- Codex 精确源默认优先使用 `/Applications/Codex.app/Contents/Resources/codex`；如安装位置不同，可设置 `CODEGAUGE_CODEX_PATH`。
 - `ccusage 20.0.6` 不提供 Codex 剩余额度百分比和 reset time；T3 按方案保持这些字段为 `null`，不编造数值。
 - T4 配对码目前由环境变量指定或启动时生成并打印；TTL、尝试次数限制、托盘展示留到 T7/安全硬化。
 - T4 token 当前按数据模型存储在 `device_pairings.token`；后续公开分发前建议改为 token hash 存储。
@@ -91,6 +97,7 @@ Last updated: 2026-06-12
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
 - T12 通知设置开关和自定义阈值尚未接入，因为设置页需要的 `/settings` API 仍在待办；当前使用 Companion 默认阈值 80/95。
 - T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
+- T14 当前只对 Codex 接入稳定的本地 app-server 精确源；Claude Code 目前没有同等级稳定的本地 usage/rate-limit 协议，仍使用 `ccusage` 主路径，避免硬编码私有接口。
 
 ## 关键架构决策及原因
 
@@ -119,3 +126,5 @@ Last updated: 2026-06-12
 - T12 Android 前台服务从加密配对存储读取 token，不通过 Intent 传递敏感信息；通知面向中文用户，标题和正文统一使用中文。
 - T13 小组件使用 SharedPreferences 缓存最后一次快照，Glance 渲染只读本地缓存；网络刷新集中在 `CodeGaugeWidgetUpdater`，避免 widget 渲染阶段触网。
 - T13 使用 WorkManager 15 分钟周期任务兜底刷新，同时在配对状态变化和前台 `/stream` 收到消息时主动刷新，让桌面小组件保持接近实时但不额外常驻后台。
+- T14 精确源被设计为 Collector 的可选 `PreciseSource`，在 `ccusage` 采集之后运行；精确源只覆盖百分比、reset time 和 source，缺失的 used/limit 会从已有窗口合并，保证回退数据仍完整。
+- T14 Codex 精确源通过 `codex app-server --stdio` 调用 `account/rateLimits/read`，不读取或输出本地 token，不直接拼接私有 HTTP endpoint。

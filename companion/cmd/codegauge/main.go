@@ -81,6 +81,11 @@ func run() error {
 
 	quotaCollector := collector.New(notifyingStore, collector.Options{
 		CCUsagePath: cfg.CCUsagePath,
+		PreciseSources: []collector.PreciseSource{
+			collector.CodexAppServerSource{
+				CodexPath: cfg.CodexPath,
+			},
+		},
 	})
 	go func() {
 		if err := quotaCollector.Run(appCtx, time.Duration(cfg.CollectIntervalSeconds)*time.Second); err != nil {
