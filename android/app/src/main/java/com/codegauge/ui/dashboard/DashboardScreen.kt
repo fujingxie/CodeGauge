@@ -1,7 +1,9 @@
 package com.codegauge.ui.dashboard
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +42,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.codegauge.activity.ActivityEvent
+import com.codegauge.activity.ActivityRepository
+import com.codegauge.activity.formatEventAge
+import com.codegauge.activity.formatEventDetail
+import com.codegauge.activity.formatEventTitle
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.dashboard.DashboardSnapshot
 import com.codegauge.dashboard.ProviderStatus
@@ -77,14 +84,21 @@ import kotlin.math.abs
 fun DashboardRoute(
     pairing: PairingRecord,
     repository: DashboardRepository,
+    activityRepository: ActivityRepository,
+    selectedProviderId: String?,
+    onSelectedProviderIdChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var snapshot by remember(pairing.serverUrl, pairing.token) {
         mutableStateOf<DashboardSnapshot?>(null)
     }
+    var detailEvents by remember(pairing.serverUrl, pairing.token, selectedProviderId) {
+        mutableStateOf(emptyList<ActivityEvent>())
+    }
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var detailEventError by remember { mutableStateOf<String?>(null) }
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
@@ -107,8 +121,24 @@ fun DashboardRoute(
         }
     }
 
+    suspend fun loadDetailEvents(providerId: String) {
+        try {
+            detailEvents = activityRepository.loadEvents(pairing)
+                .filter { event -> event.providerId.equals(providerId, ignoreCase = true) }
+                .take(5)
+            detailEventError = null
+        } catch (exception: Exception) {
+            Log.e(Tag, "Load provider events failed", exception)
+            detailEventError = exception.message ?: "最近事件加载失败"
+        }
+    }
+
     LaunchedEffect(pairing.serverUrl, pairing.token) {
         loadSnapshot(fullScreenLoading = true)
+    }
+
+    LaunchedEffect(pairing.serverUrl, pairing.token, selectedProviderId) {
+        selectedProviderId?.let { loadDetailEvents(it) }
     }
 
     LaunchedEffect(Unit) {
@@ -123,9 +153,14 @@ fun DashboardRoute(
         onRefresh = {
             scope.launch {
                 loadSnapshot(fullScreenLoading = false)
+                selectedProviderId?.let { loadDetailEvents(it) }
             }
         },
     )
+
+    BackHandler(enabled = selectedProviderId != null) {
+        onSelectedProviderIdChange(null)
+    }
 
     Box(
         modifier = modifier
@@ -140,27 +175,40 @@ fun DashboardRoute(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            DashboardStatusStrip(
-                pairing = pairing,
-                snapshot = snapshot,
-                online = snapshot != null && errorMessage == null,
-                now = now,
-            )
-
-            errorMessage?.let {
-                ErrorMessage(it)
+            val currentSnapshot = snapshot
+            val selectedProvider = selectedProviderId?.let { providerId ->
+                currentSnapshot?.providers?.firstOrNull { it.id.equals(providerId, ignoreCase = true) }
             }
 
-            if (isLoading && snapshot == null) {
-                DashboardLoading()
+            if (selectedProvider != null) {
+                ProviderDetailScreen(
+                    provider = selectedProvider,
+                    events = detailEvents,
+                    eventError = detailEventError,
+                    now = now,
+                    onBack = { onSelectedProviderIdChange(null) },
+                )
             } else {
-                val currentSnapshot = snapshot
-                if (currentSnapshot == null) {
+                DashboardStatusStrip(
+                    pairing = pairing,
+                    snapshot = snapshot,
+                    online = snapshot != null && errorMessage == null,
+                    now = now,
+                )
+
+                errorMessage?.let {
+                    ErrorMessage(it)
+                }
+
+                if (isLoading && snapshot == null) {
+                    DashboardLoading()
+                } else if (currentSnapshot == null) {
                     EmptyDashboardPanel()
                 } else {
                     ProviderGaugeCards(
                         providers = currentSnapshot.providers,
                         now = now,
+                        onProviderClick = { onSelectedProviderIdChange(it.id) },
                     )
                     CurrentSessionPanel(currentSnapshot.sessions)
                 }
@@ -219,6 +267,7 @@ private fun DashboardStatusStrip(
 private fun ProviderGaugeCards(
     providers: List<ProviderStatus>,
     now: Instant,
+    onProviderClick: (ProviderStatus) -> Unit,
 ) {
     val orderedProviders = providers.sortedWith(
         compareBy<ProviderStatus> {
@@ -240,6 +289,7 @@ private fun ProviderGaugeCards(
             ProviderGaugeCard(
                 provider = provider,
                 now = now,
+                onClick = { onProviderClick(provider) },
             )
         }
     }
@@ -249,6 +299,7 @@ private fun ProviderGaugeCards(
 private fun ProviderGaugeCard(
     provider: ProviderStatus,
     now: Instant,
+    onClick: () -> Unit,
 ) {
     val visual = provider.visualSpec()
     val fiveHour = provider.window(WindowTypes.FiveHours)
@@ -256,7 +307,10 @@ private fun ProviderGaugeCard(
     val mainWindow = provider.mainWindow(fiveHour, weekly)
     val highlighted = mainWindow?.percentLeft?.let { it <= 25 } == true
 
-    DesignPanel(highlighted = highlighted) {
+    DesignPanel(
+        modifier = Modifier.clickable(onClick = onClick),
+        highlighted = highlighted,
+    ) {
         ProviderHeader(
             provider = provider,
             visual = visual,
@@ -439,6 +493,342 @@ private fun CurrentSessionPanel(sessions: List<SessionStatus>) {
                 text = "›",
                 color = DashboardMuted,
                 fontSize = 28.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProviderDetailScreen(
+    provider: ProviderStatus,
+    events: List<ActivityEvent>,
+    eventError: String?,
+    now: Instant,
+    onBack: () -> Unit,
+) {
+    val visual = provider.visualSpec()
+    val fiveHour = provider.window(WindowTypes.FiveHours)
+    val weekly = provider.window(WindowTypes.Weekly)
+    val mainWindow = provider.mainWindow(fiveHour, weekly)
+    val hasWindowData = provider.windows.any { window ->
+        window.percentLeft != null || window.used != null || window.limit != null || window.resetsAt != null
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ProviderDetailHeader(
+            provider = provider,
+            visual = visual,
+            onBack = onBack,
+        )
+
+        QuotaRingGauge(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            percentLeft = mainWindow?.percentLeft,
+            windowLabel = mainWindow?.windowType.windowShortLabel(),
+            accent = visual.accent,
+            gaugeSize = 224.dp,
+            valueFontSize = 58.sp,
+        )
+
+        WindowTimerPill(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            window = mainWindow,
+            now = now,
+        )
+
+        DetailWindowPanel(
+            title = "5h 窗口",
+            window = fiveHour,
+            resetLabel = "精确恢复",
+        )
+        DetailWindowPanel(
+            title = "周窗口",
+            window = weekly,
+            resetLabel = "重置",
+        )
+
+        if (!hasWindowData) {
+            Text(
+                text = "可能原因：Companion 未上报本服务商，或服务商接口超时。下拉重试。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = DashboardMuted,
+                lineHeight = 22.sp,
+            )
+        }
+
+        ProviderRecentEvents(
+            provider = provider,
+            events = events,
+            eventError = eventError,
+            now = now,
+        )
+    }
+}
+
+@Composable
+private fun ProviderDetailHeader(
+    provider: ProviderStatus,
+    visual: ProviderVisual,
+    onBack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable(onClick = onBack),
+                shape = CircleShape,
+                color = DashboardSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, DashboardBorder),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "‹",
+                        color = DashboardText,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Light,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(18.dp))
+            DesignDot(color = visual.accent, glow = true)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = provider.name.ifBlank { formatProviderName(provider.id) },
+                style = MaterialTheme.typography.headlineMedium,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            visual.planLabel(provider.planTier)?.let {
+                Spacer(modifier = Modifier.width(8.dp))
+                DesignPill(text = it)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailWindowPanel(
+    title: String,
+    window: QuotaWindowStatus?,
+    resetLabel: String,
+) {
+    DesignPanel(
+        contentPadding = 14.dp,
+        contentSpacing = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = detailSourceLabel(window?.source),
+                style = MaterialTheme.typography.titleSmall,
+                color = DashboardMuted,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        DetailMetricRow("used", detailCount(window?.used))
+        DetailMetricRow("limit", detailCount(window?.limit))
+        DetailMetricRow(
+            label = "剩余",
+            value = window?.percentLeft?.let { "${it.coerceIn(0, 100)}%" } ?: "—",
+            emphasized = window?.percentLeft?.let { it <= 25 } == true,
+        )
+        DetailMetricRow(resetLabel, detailReset(window))
+        DetailMetricRow(
+            label = "来源",
+            value = detailSourceLabel(window?.source),
+            last = true,
+            strong = true,
+        )
+    }
+}
+
+@Composable
+private fun DetailMetricRow(
+    label: String,
+    value: String,
+    emphasized: Boolean = false,
+    strong: Boolean = false,
+    last: Boolean = false,
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 11.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = DashboardMuted,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                color = when {
+                    emphasized -> WarningAmber
+                    strong -> DashboardText
+                    else -> DashboardText.copy(alpha = 0.92f)
+                },
+                fontWeight = if (strong || emphasized) FontWeight.Bold else FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+        if (!last) {
+            DesignDivider()
+        }
+    }
+}
+
+@Composable
+private fun ProviderRecentEvents(
+    provider: ProviderStatus,
+    events: List<ActivityEvent>,
+    eventError: String?,
+    now: Instant,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "最近事件",
+            style = MaterialTheme.typography.headlineSmall,
+            color = DashboardText,
+            fontWeight = FontWeight.Bold,
+        )
+
+        eventError?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFFFF8791),
+            )
+        }
+
+        if (events.isEmpty()) {
+            DesignPanel {
+                DetailEventPlaceholder(provider)
+            }
+        } else {
+            DesignPanel(contentPadding = 0.dp, contentSpacing = 0.dp) {
+                events.forEachIndexed { index, event ->
+                    DetailEventRow(
+                        event = event,
+                        now = now,
+                    )
+                    if (index != events.lastIndex) {
+                        DesignDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailEventPlaceholder(provider: ProviderStatus) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EventBadge(
+            symbol = ">_",
+            accent = DashboardMuted,
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column {
+            Text(
+                text = "暂无相关事件",
+                style = MaterialTheme.typography.titleMedium,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = provider.name.ifBlank { formatProviderName(provider.id) },
+                style = MaterialTheme.typography.bodyMedium,
+                color = DashboardMuted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailEventRow(
+    event: ActivityEvent,
+    now: Instant,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EventBadge(
+            symbol = eventSymbol(event.type),
+            accent = eventAccent(event.type),
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = formatEventTitle(event),
+                style = MaterialTheme.typography.titleMedium,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                text = formatEventDetail(event),
+                style = MaterialTheme.typography.bodyMedium,
+                color = DashboardMuted,
+                maxLines = 1,
+            )
+        }
+        Text(
+            text = formatEventAge(event, now),
+            style = MaterialTheme.typography.bodySmall,
+            color = DashboardMuted,
+            fontFamily = FontFamily.Monospace,
+        )
+    }
+}
+
+@Composable
+private fun EventBadge(
+    symbol: String,
+    accent: Color,
+) {
+    Surface(
+        modifier = Modifier.size(42.dp),
+        shape = CircleShape,
+        color = accent.copy(alpha = 0.16f),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = symbol,
+                color = accent,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
             )
         }
     }
@@ -657,6 +1047,54 @@ private fun formatDurationCompact(duration: Duration): String {
     }
 }
 
+private fun detailCount(value: Long?): String {
+    return value?.let(::formatCompactCount) ?: "—"
+}
+
+private fun detailReset(window: QuotaWindowStatus?): String {
+    val resetsAt = window?.resetsAt ?: return "—"
+    return if (window.windowType == WindowTypes.Weekly) {
+        DetailDateFormatter.format(resetsAt)
+    } else {
+        ClockFormatter.format(resetsAt)
+    }
+}
+
+private fun detailSourceLabel(source: String?): String {
+    return when (source) {
+        "endpoint" -> "精确"
+        "ccusage" -> "估算"
+        "cli" -> "CLI"
+        null, "" -> "—"
+        else -> source
+    }
+}
+
+private fun eventSymbol(type: String): String {
+    return when (type) {
+        "quota_reset" -> "↯"
+        "limit_warn" -> "△"
+        "limit_critical" -> "!"
+        "session_done" -> "✓"
+        "session_waiting" -> "?"
+        "session_start" -> ">_"
+        "error" -> "×"
+        else -> "•"
+    }
+}
+
+private fun eventAccent(type: String): Color {
+    return when (type) {
+        "quota_reset" -> GoodGreen
+        "limit_warn" -> WarningAmber
+        "limit_critical" -> ClaudeAccent
+        "session_done" -> GoodGreen
+        "session_waiting" -> WarningAmber
+        "error" -> Color(0xFFE34D5A)
+        else -> Color(0xFF7A8AB3)
+    }
+}
+
 private fun sessionSummary(session: SessionStatus): String {
     val provider = formatProviderName(session.providerId)
     val project = session.projectPath.substringAfterLast('/').ifBlank { "未知项目" }
@@ -676,6 +1114,10 @@ private fun formatClock(value: Instant): String {
 
 private val ClockFormatter = DateTimeFormatter
     .ofPattern("HH:mm")
+    .withZone(ZoneId.systemDefault())
+
+private val DetailDateFormatter = DateTimeFormatter
+    .ofPattern("M月d日 HH:mm")
     .withZone(ZoneId.systemDefault())
 
 private const val Tag = "CodeGaugeDashboard"

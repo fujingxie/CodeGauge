@@ -242,3 +242,12 @@
 - 过滤 Activity 页面主动销毁 WebSocket 时的 `Socket closed` 误报，避免切换页面后污染崩溃排查日志。
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb after reinstalling; checked Activity / Settings screenshots and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugeActivity` crashes in `logcat`.
+
+## 2026-06-12 - Android Provider 详情页
+
+- Added a Provider detail mode inside Dashboard and hid the bottom navigation while the detail screen is active.
+- Made Claude/Codex quota cards clickable and wired them to the new detail page with Android back and in-page back support.
+- Added the high-fidelity Provider detail layout: header, large quota ring, timer pill, 5h/weekly detail panels, unavailable-data hint, and provider-filtered recent events.
+- Extended the shared quota ring gauge to support a larger detail-page size without changing existing Dashboard card rendering.
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb after reinstalling; opened Claude and Codex detail pages, tested back navigation and scrolling, and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugeDashboard` crashes in `logcat`.

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -136,9 +137,11 @@ internal fun QuotaRingGauge(
     windowLabel: String,
     accent: Color,
     modifier: Modifier = Modifier,
+    gaugeSize: Dp = 126.dp,
+    valueFontSize: TextUnit = 36.sp,
 ) {
     Box(
-        modifier = modifier.size(126.dp),
+        modifier = modifier.size(gaugeSize),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -170,7 +173,7 @@ internal fun QuotaRingGauge(
                 Text(
                     text = percentLeft?.coerceIn(0, 100)?.toString() ?: "-",
                     color = percentLeft?.let { if (it <= 25) GaugeWarning else DashboardText } ?: DashboardMuted,
-                    fontSize = 36.sp,
+                    fontSize = valueFontSize,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                 )

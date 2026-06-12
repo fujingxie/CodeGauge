@@ -38,39 +38,48 @@ fun MainTabsRoute(
     onClearPairing: () -> Unit,
 ) {
     var selectedTab by remember { mutableStateOf(MainTab.Dashboard) }
+    var selectedDashboardProviderId by remember { mutableStateOf<String?>(null) }
+    val hideBottomBar = selectedTab == MainTab.Dashboard && selectedDashboardProviderId != null
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
-                containerColor = Color(0xFF111722),
-                tonalElevation = 0.dp,
-            ) {
-                MainTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        icon = {
-                            Text(
-                                text = tab.iconText,
-                                fontSize = 23.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = tab.label,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onSurface,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = Color.Transparent,
-                        ),
-                    )
+            if (!hideBottomBar) {
+                NavigationBar(
+                    containerColor = Color(0xFF111722),
+                    tonalElevation = 0.dp,
+                ) {
+                    MainTab.entries.forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = {
+                                selectedTab = tab
+                                if (tab != MainTab.Dashboard) {
+                                    selectedDashboardProviderId = null
+                                }
+                            },
+                            icon = {
+                                Text(
+                                    text = tab.iconText,
+                                    fontSize = 23.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = tab.label,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = Color.Transparent,
+                            ),
+                        )
+                    }
                 }
             }
         },
@@ -84,6 +93,9 @@ fun MainTabsRoute(
                 MainTab.Dashboard -> DashboardRoute(
                     pairing = pairing,
                     repository = dashboardRepository,
+                    activityRepository = activityRepository,
+                    selectedProviderId = selectedDashboardProviderId,
+                    onSelectedProviderIdChange = { selectedDashboardProviderId = it },
                 )
                 MainTab.Activity -> ActivityRoute(
                     pairing = pairing,
