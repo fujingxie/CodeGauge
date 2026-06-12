@@ -132,55 +132,54 @@ fun SettingsRoute(
 
         if (isLoading && snapshot == null) {
             LoadingPanel()
-            return@Column
-        }
-
-        SettingsActionsPanel(
-            pairing = pairing,
-            hasChanges = currentDraft != null && currentDraft != savedSettings,
-            canSave = canSave,
-            isSaving = isSaving,
-            onRefresh = {
-                scope.launch {
-                    loadSettings()
-                }
-            },
-            onSave = {
-                val settings = currentDraft ?: return@SettingsActionsPanel
-                val parsedInterval = intervalSeconds ?: return@SettingsActionsPanel
-                scope.launch {
-                    saveSettings(settings.copy(collectIntervalSeconds = parsedInterval))
-                }
-            },
-            onClearPairing = onClearPairing,
-        )
-
-        currentDraft?.let { settings ->
-            NotificationPanel(
-                settings = settings,
-                onChange = {
-                    draft = it
-                },
-            )
-            ThresholdPanel(
-                settings = settings,
-                intervalText = intervalText,
-                onSettingsChange = {
-                    draft = it
-                },
-                onIntervalTextChange = { value ->
-                    intervalText = value.filter(Char::isDigit).take(5)
-                    intervalText.toIntOrNull()?.let { seconds ->
-                        draft = settings.copy(collectIntervalSeconds = seconds)
+        } else {
+            SettingsActionsPanel(
+                pairing = pairing,
+                hasChanges = currentDraft != null && currentDraft != savedSettings,
+                canSave = canSave,
+                isSaving = isSaving,
+                onRefresh = {
+                    scope.launch {
+                        loadSettings()
                     }
                 },
+                onSave = {
+                    val settings = currentDraft ?: return@SettingsActionsPanel
+                    val parsedInterval = intervalSeconds ?: return@SettingsActionsPanel
+                    scope.launch {
+                        saveSettings(settings.copy(collectIntervalSeconds = parsedInterval))
+                    }
+                },
+                onClearPairing = onClearPairing,
             )
-        }
 
-        snapshot?.diagnostics?.let {
-            DiagnosticsPanel(it)
+            currentDraft?.let { settings ->
+                NotificationPanel(
+                    settings = settings,
+                    onChange = {
+                        draft = it
+                    },
+                )
+                ThresholdPanel(
+                    settings = settings,
+                    intervalText = intervalText,
+                    onSettingsChange = {
+                        draft = it
+                    },
+                    onIntervalTextChange = { value ->
+                        intervalText = value.filter(Char::isDigit).take(5)
+                        intervalText.toIntOrNull()?.let { seconds ->
+                            draft = settings.copy(collectIntervalSeconds = seconds)
+                        }
+                    },
+                )
+            }
+
+            snapshot?.diagnostics?.let {
+                DiagnosticsPanel(it)
+            }
+            DevicesPanel(snapshot?.devices.orEmpty())
         }
-        DevicesPanel(snapshot?.devices.orEmpty())
     }
 }
 

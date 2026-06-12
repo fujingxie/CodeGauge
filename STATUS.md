@@ -83,6 +83,7 @@ Last updated: 2026-06-12
 - 设置页前置: 临时 Companion smoke 通过：配对后可访问 `/settings`、PATCH 设置、查看 `/devices` 和 `/diagnostics`。
 - 设置页: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖设置 JSON 解析、PATCH body 和 Repository 行为。
 - 设置页: `./gradlew :android:app:assembleDebug` 通过。
+- 设置页: 修复点击 Settings 后 Compose 重组闪退；adb 复测 Dashboard → Settings 切换无 `AndroidRuntime` 崩溃。
 
 ## 已知问题和技术债务
 
@@ -104,7 +105,6 @@ Last updated: 2026-06-12
 - T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
 - `/settings` 当前负责持久化偏好；Collector 采集间隔、stream alert 阈值和 Android 通知开关仍需后续接入运行时读取/热更新。
-- 设置页 Android UI 已接入 Companion 设置 API；尚未做手机手动验收。
 - T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
 - T14 当前只对 Codex 接入稳定的本地 app-server 精确源；Claude Code 目前没有同等级稳定的本地 usage/rate-limit 协议，仍使用 `ccusage` 主路径，避免硬编码私有接口。
 

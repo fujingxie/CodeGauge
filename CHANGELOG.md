@@ -1,5 +1,13 @@
 # CodeGauge Changelog
 
+## 2026-06-12 - Fix Android settings crash
+
+- Fixed a Settings screen Compose recomposition crash caused by returning early from the `Column` content lambda after the initial loading state.
+- Replaced the early return with a normal loading/content branch so the composition tree remains stable when settings data arrives.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+- Verified on the connected phone with adb: Dashboard to Settings switching no longer logs `AndroidRuntime` crashes.
+
 ## 2026-06-12 - Android settings screen
 
 - Added Android settings models, parser, API client, repository, and exception type.
