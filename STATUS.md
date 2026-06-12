@@ -27,6 +27,8 @@ Last updated: 2026-06-12
 - T10: Android 已实现仪表盘首页，配对后可拉取 `/status` 并展示连接状态、Claude/Codex 额度卡、数据来源、reset 倒计时和当前会话摘要。
 - T11: Companion 已实现鉴权 `/events`，WebSocket 已推送 `event_update`；Android 已实现 Dashboard / Activity 底部 Tab、活动页会话列表和事件流。
 - T12: Android 已实现前台监听服务，持有 `/stream` WebSocket，收到额度 alert、任务完成、等待确认时发送中文通知，并支持断线自动重连。
+- T13: Android 已实现 Glance 桌面小组件，显示 Claude/Codex 额度、恢复倒计时和更新时间，支持点击打开 App。
+- T13: 小组件会通过 WorkManager 定时刷新，并在前台监听服务收到 `/stream` 推送时主动刷新。
 
 ## 进行中 / 待处理项
 
@@ -64,13 +66,15 @@ Last updated: 2026-06-12
 - T12: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖通知映射和中文通知文案。
 - T12: `./gradlew :android:app:assembleDebug` 通过。
 - T12: 手机手动验收通过：前台常驻通知出现，`Stop` / `Notification` hook 可触发通知；通知文案已改为中文。
+- T13: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖小组件额度文案格式化。
+- T13: `./gradlew :android:app:assembleDebug` 通过。
+- T13: 手机手动验收通过：桌面添加 CodeGauge 小组件后能显示真实额度，点击可打开 App，推送触发后可刷新。
 - 设置页前置: 设置页需要的 `/settings`、`/diagnostics`、`/devices` API 需要补入实施计划。
 
 ## 已知问题和技术债务
 
 - `compileSdk`/`targetSdk` 已设为 36；当前本机缓存只有 Android Gradle Plugin 8.1.3，已临时加 `android.suppressUnsupportedCompileSdk=36`。
 - LAN HTTP 需要明文流量，当前网络安全配置允许 cleartext；后续若支持固定 host 或本地 TLS，应收紧。
-- Glance 仅完成基础声明，尚未实现业务逻辑。
 - 本机 `8765` 端口当前已有 `python3.1` 进程监听；T1 验收改用 `CODEGAUGE_PORT=18765`，默认配置仍保持 `8765`。
 - `modernc.org/sqlite` 依赖通过 `GOPROXY=https://goproxy.cn,direct` 拉取；默认 `proxy.golang.org` 在本机网络下超时。
 - Codex shell 的 PATH 可能看不到 nvm/.local 安装目录；运行 Companion 时如找不到 `ccusage`，需要设置 `CODEGAUGE_CCUSAGE_PATH` 为 `command -v ccusage` 的结果。
@@ -86,6 +90,7 @@ Last updated: 2026-06-12
 - T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
 - T12 通知设置开关和自定义阈值尚未接入，因为设置页需要的 `/settings` API 仍在待办；当前使用 Companion 默认阈值 80/95。
+- T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
 
 ## 关键架构决策及原因
 
@@ -112,3 +117,5 @@ Last updated: 2026-06-12
 - T10 对 `percent_left`、`limit`、`resets_at` 的 `null` 值不做推断，UI 显示 `Unknown` 或 `Reset time unknown`，避免编造 quota。
 - T11 后端复用 SQLite Event Store 暴露 `/events`，同时让 `NotifyingStore.AddEvent` 发布 `event_update`，避免 Android 活动页轮询。
 - T12 Android 前台服务从加密配对存储读取 token，不通过 Intent 传递敏感信息；通知面向中文用户，标题和正文统一使用中文。
+- T13 小组件使用 SharedPreferences 缓存最后一次快照，Glance 渲染只读本地缓存；网络刷新集中在 `CodeGaugeWidgetUpdater`，避免 widget 渲染阶段触网。
+- T13 使用 WorkManager 15 分钟周期任务兜底刷新，同时在配对状态变化和前台 `/stream` 收到消息时主动刷新，让桌面小组件保持接近实时但不额外常驻后台。

@@ -12,6 +12,8 @@ import com.codegauge.activity.OkHttpActivityStreamClient
 import com.codegauge.notification.CodeGaugeNotifications
 import com.codegauge.notification.NotificationMapper
 import com.codegauge.pairing.EncryptedPairingStore
+import com.codegauge.widget.CodeGaugeWidgetScheduler
+import com.codegauge.widget.CodeGaugeWidgetUpdater
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +78,8 @@ class CodeGaugeListenerService : Service() {
             }
 
             var reconnectDelayMs = 1_000L
+            CodeGaugeWidgetScheduler.schedule(this@CodeGaugeListenerService)
+            CodeGaugeWidgetUpdater.refresh(this@CodeGaugeListenerService)
             while (isActive) {
                 val disconnected = CompletableDeferred<Unit>()
                 connection = streamClient.connect(
@@ -83,6 +87,9 @@ class CodeGaugeListenerService : Service() {
                     onMessage = { message ->
                         NotificationMapper.map(message)?.let { spec ->
                             notifications.show(spec)
+                        }
+                        serviceScope.launch {
+                            CodeGaugeWidgetUpdater.refresh(this@CodeGaugeListenerService)
                         }
                     },
                     onFailure = { error ->

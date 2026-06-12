@@ -1,5 +1,17 @@
 # CodeGauge Changelog
 
+## 2026-06-12 - T13 Glance widget
+
+- Added a Glance home-screen widget for CodeGauge quota status.
+- Added widget state formatting for Claude/Codex 5h and weekly windows, reset countdowns, empty state, and error state.
+- Added SharedPreferences widget cache so Glance rendering reads local state only.
+- Added WorkManager periodic refresh every 15 minutes.
+- Wired widget refresh on pairing changes and foreground `/stream` messages.
+- Added widget receiver metadata and Glance/WorkManager dependencies.
+- Verified `./gradlew :android:app:testDebugUnitTest`.
+- Verified `./gradlew :android:app:assembleDebug`.
+- Verified manually on phone that the widget displays real quota data, opens the App when tapped, and refreshes after a stream-triggering hook.
+
 ## 2026-06-12 - T12 foreground listener and notifications
 
 - Added Android foreground listener service that reads the encrypted pairing record and keeps `/api/v1/stream` connected.

@@ -48,6 +48,8 @@ import com.codegauge.pairing.PairingRecord
 import com.codegauge.pairing.PairingRepository
 import com.codegauge.pairing.parseManualEndpoint
 import com.codegauge.ui.main.MainTabsRoute
+import com.codegauge.widget.CodeGaugeWidgetScheduler
+import com.codegauge.widget.CodeGaugeWidgetUpdater
 import kotlinx.coroutines.launch
 
 @Composable
@@ -96,7 +98,11 @@ fun PairingRoute(
         }
         if (savedPairing == null) {
             CodeGaugeListenerService.stop(context)
+            CodeGaugeWidgetScheduler.cancel(context)
+            CodeGaugeWidgetUpdater.refresh(context)
         } else {
+            CodeGaugeWidgetScheduler.schedule(context)
+            CodeGaugeWidgetUpdater.refresh(context)
             CodeGaugeListenerService.start(context)
         }
     }
