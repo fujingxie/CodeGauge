@@ -2,11 +2,9 @@ package com.codegauge.ui.dashboard
 
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,11 +21,8 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,27 +36,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.dashboard.DashboardSnapshot
 import com.codegauge.dashboard.ProviderStatus
 import com.codegauge.dashboard.QuotaWindowStatus
 import com.codegauge.dashboard.SessionStatus
 import com.codegauge.dashboard.WindowTypes
-import com.codegauge.dashboard.formatPercentLeft
 import com.codegauge.dashboard.formatProviderName
-import com.codegauge.dashboard.formatResetText
 import com.codegauge.dashboard.formatSessionSummary
-import com.codegauge.dashboard.formatSource
-import com.codegauge.dashboard.formatUsage
-import com.codegauge.dashboard.progressFromPercentLeft
 import com.codegauge.dashboard.window
 import com.codegauge.pairing.PairingRecord
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -68,7 +65,6 @@ fun DashboardRoute(
     pairing: PairingRecord,
     repository: DashboardRepository,
     modifier: Modifier = Modifier,
-    onClearPairing: () -> Unit,
 ) {
     var snapshot by remember(pairing.serverUrl, pairing.token) {
         mutableStateOf<DashboardSnapshot?>(null)
@@ -121,40 +117,39 @@ fun DashboardRoute(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .background(DashboardBackground)
             .pullRefresh(pullRefreshState),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            DashboardHeader()
-            ConnectionPanel(
+            DashboardStatusStrip(
                 pairing = pairing,
+                snapshot = snapshot,
                 online = snapshot != null && errorMessage == null,
-                errorMessage = errorMessage,
-                onRefresh = {
-                    scope.launch {
-                        loadSnapshot(fullScreenLoading = false)
-                    }
-                },
-                onClearPairing = onClearPairing,
+                now = now,
             )
 
+            errorMessage?.let {
+                ErrorMessage(it)
+            }
+
             if (isLoading && snapshot == null) {
-                LoadingPanel()
+                DashboardLoading()
             } else {
                 val currentSnapshot = snapshot
                 if (currentSnapshot == null) {
                     EmptyDashboardPanel()
                 } else {
-                    ProviderCards(
+                    ProviderGaugeCards(
                         providers = currentSnapshot.providers,
                         now = now,
                     )
-                    SessionSummaryPanel(currentSnapshot.sessions)
+                    CurrentSessionPanel(currentSnapshot.sessions)
                 }
             }
         }
@@ -163,85 +158,52 @@ fun DashboardRoute(
             refreshing = isRefreshing,
             state = pullRefreshState,
             modifier = Modifier.align(Alignment.TopCenter),
-            backgroundColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.primary,
+            backgroundColor = DashboardSurface,
+            contentColor = ClaudeAccent,
         )
     }
 }
 
 @Composable
-private fun DashboardHeader() {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = "CodeGauge",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = "Claude / Codex 额度与会话状态",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun ConnectionPanel(
+private fun DashboardStatusStrip(
     pairing: PairingRecord,
+    snapshot: DashboardSnapshot?,
     online: Boolean,
-    errorMessage: String?,
-    onRefresh: () -> Unit,
-    onClearPairing: () -> Unit,
+    now: Instant,
 ) {
-    Panel {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatusDot(online)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (online) "已连接" else "未连接",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "${pairing.serverName} · ${pairing.serverUrl}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            DesignDot(
+                color = if (online) GoodGreen else DashboardMuted,
+                glow = online,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${pairing.serverName} · ${if (online) "已连接" else "未连接"}",
+                style = MaterialTheme.typography.titleSmall,
+                color = DashboardText,
+                maxLines = 1,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
-
-        errorMessage?.let {
-            ErrorMessage(it)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = onRefresh,
-            ) {
-                Text("刷新")
-            }
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = onClearPairing,
-            ) {
-                Text("重新配对")
-            }
-        }
+        Text(
+            text = "${formatClock(snapshot?.serverTime ?: now)}  ${if (online) "已同步" else "待同步"}",
+            style = MaterialTheme.typography.bodySmall,
+            color = DashboardMuted,
+            fontFamily = FontFamily.Monospace,
+        )
     }
 }
 
 @Composable
-private fun ProviderCards(
+private fun ProviderGaugeCards(
     providers: List<ProviderStatus>,
     now: Instant,
 ) {
@@ -260,9 +222,9 @@ private fun ProviderCards(
         return
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         orderedProviders.forEach { provider ->
-            ProviderCard(
+            ProviderGaugeCard(
                 provider = provider,
                 now = now,
             )
@@ -271,276 +233,436 @@ private fun ProviderCards(
 }
 
 @Composable
-private fun ProviderCard(
+private fun ProviderGaugeCard(
     provider: ProviderStatus,
     now: Instant,
 ) {
+    val visual = provider.visualSpec()
     val fiveHour = provider.window(WindowTypes.FiveHours)
     val weekly = provider.window(WindowTypes.Weekly)
+    val mainWindow = provider.mainWindow(fiveHour, weekly)
+    val highlighted = mainWindow?.percentLeft?.let { it <= 25 } == true
 
-    Panel {
+    DesignPanel(highlighted = highlighted) {
+        ProviderHeader(
+            provider = provider,
+            visual = visual,
+            source = mainWindow?.source.orEmpty(),
+        )
+
+        QuotaRingGauge(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            percentLeft = mainWindow?.percentLeft,
+            windowLabel = mainWindow?.windowType.windowShortLabel(),
+            accent = visual.accent,
+        )
+
+        WindowTimerPill(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            window = mainWindow,
+            now = now,
+        )
+
+        DesignDivider()
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = provider.name.ifBlank { provider.id },
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                )
-                if (provider.planTier.isNotBlank()) {
-                    Text(
-                        text = provider.planTier,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            SourcePill(
-                source = listOfNotNull(fiveHour, weekly).firstOrNull()?.source.orEmpty(),
+            WindowMetric(
+                label = "5H",
+                window = fiveHour,
+            )
+            WindowMetric(
+                label = "周",
+                window = weekly,
+                alignEnd = true,
             )
         }
-
-        if (!provider.available) {
-            Text(
-                text = "数据暂不可用",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            return@Panel
-        }
-
-        QuotaWindowBlock(
-            label = "5 小时窗口",
-            window = fiveHour,
-            now = now,
-            accentColor = MaterialTheme.colorScheme.primary,
-        )
-        QuotaWindowBlock(
-            label = "周额度",
-            window = weekly,
-            now = now,
-            accentColor = MaterialTheme.colorScheme.secondary,
-        )
     }
 }
 
 @Composable
-private fun QuotaWindowBlock(
-    label: String,
-    window: QuotaWindowStatus?,
-    now: Instant,
-    accentColor: Color,
+private fun ProviderHeader(
+    provider: ProviderStatus,
+    visual: ProviderVisual,
+    source: String,
 ) {
-    val progress = progressFromPercentLeft(window?.percentLeft)
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = formatPercentLeft(window?.percentLeft),
-                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 30.sp),
-                color = accentColor,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-
-        if (progress == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(99.dp))
-                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)),
-            )
-        } else {
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(99.dp)),
-                color = accentColor,
-                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f),
-            )
-        }
-
-        Text(
-            text = formatUsage(window?.used, window?.limit),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = formatResetText(window?.resetsAt, now),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun SessionSummaryPanel(sessions: List<SessionStatus>) {
-    Panel {
-        Text(
-            text = "当前会话",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = formatSessionSummary(sessions),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        sessions.take(3).forEach { session ->
-            SessionRow(session)
-        }
-    }
-}
-
-@Composable
-private fun SessionRow(session: SessionStatus) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DesignDot(color = visual.accent, glow = true)
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = session.projectPath.substringAfterLast('/').ifBlank { "未知项目" },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                text = provider.name.ifBlank { formatProviderName(provider.id) },
+                style = MaterialTheme.typography.headlineSmall,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
             )
-            Text(
-                text = formatProviderName(session.providerId),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            visual.planLabel(provider.planTier)?.let {
+                Spacer(modifier = Modifier.width(8.dp))
+                DesignPill(
+                    text = it,
+                    accent = DashboardMuted,
+                )
+            }
         }
+        SourceBadge(source)
+    }
+}
+
+@Composable
+private fun SourceBadge(source: String) {
+    val precise = source == "endpoint"
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        DesignDot(
+            color = if (precise) GoodGreen else WarningAmber,
+            glow = precise,
+        )
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = when (session.state) {
-                "running" -> "运行中"
-                "waiting" -> "等待确认"
-                "done" -> "已完成"
-                "error" -> "异常"
-                else -> session.state.ifBlank { "未知" }
+            text = when {
+                precise -> "精确"
+                source.isBlank() -> "未知"
+                else -> "估算"
             },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = DashboardMuted,
             fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
 @Composable
-private fun LoadingPanel() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(220.dp),
-        contentAlignment = Alignment.Center,
+private fun WindowTimerPill(
+    window: QuotaWindowStatus?,
+    now: Instant,
+    modifier: Modifier = Modifier,
+) {
+    DesignPill(
+        modifier = modifier,
+        text = formatWindowTimer(window, now),
+        accent = DashboardText,
+    )
+}
+
+@Composable
+private fun WindowMetric(
+    label: String,
+    window: QuotaWindowStatus?,
+    alignEnd: Boolean = false,
+) {
+    Column(
+        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
     ) {
-        CircularProgressIndicator()
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = DashboardMuted,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = formatWindowUsage(window),
+            style = MaterialTheme.typography.bodyMedium,
+            color = DashboardText,
+            fontFamily = FontFamily.Monospace,
+        )
+    }
+}
+
+@Composable
+private fun CurrentSessionPanel(sessions: List<SessionStatus>) {
+    val active = sessions.firstOrNull { it.state == "waiting" || it.state == "running" }
+        ?: sessions.firstOrNull()
+
+    DesignPanel(highlighted = active?.state == "waiting") {
+        if (active == null) {
+            Text(
+                text = formatSessionSummary(emptyList()),
+                style = MaterialTheme.typography.bodyLarge,
+                color = DashboardMuted,
+                fontWeight = FontWeight.SemiBold,
+            )
+            return@DesignPanel
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = ">_",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (active.state == "waiting") WarningAmber else ClaudeAccent,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.width(14.dp))
+                Text(
+                    text = sessionSummary(active),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = DashboardText,
+                    maxLines = 1,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            SessionStatePill(active.state)
+            Text(
+                modifier = Modifier.padding(start = 12.dp),
+                text = "›",
+                color = DashboardMuted,
+                fontSize = 28.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionStatePill(state: String) {
+    val (label, accent) = when (state) {
+        "waiting" -> "待确认" to WarningAmber
+        "running" -> "在跑" to GoodGreen
+        "done" -> "已完成" to DashboardMuted
+        "error" -> "异常" to Color(0xFFE34D5A)
+        else -> "未知" to DashboardMuted
+    }
+    DesignPill(
+        text = label,
+        accent = accent,
+        filled = true,
+    )
+}
+
+@Composable
+private fun DashboardLoading() {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LoadingGaugeCard(
+            name = "Claude",
+            plan = "Max",
+            accent = ClaudeAccent,
+            highlighted = true,
+        )
+        LoadingGaugeCard(
+            name = "Codex",
+            plan = "Plus",
+            accent = CodexAccent,
+        )
+    }
+}
+
+@Composable
+private fun LoadingGaugeCard(
+    name: String,
+    plan: String,
+    accent: Color,
+    highlighted: Boolean = false,
+) {
+    DesignPanel(highlighted = highlighted) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DesignDot(color = accent, glow = true)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = name,
+                style = MaterialTheme.typography.headlineSmall,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            DesignPill(text = plan)
+        }
+
+        QuotaRingGauge(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            percentLeft = null,
+            windowLabel = "5H",
+            accent = accent,
+        )
+
+        CircularProgressIndicator(
+            modifier = Modifier
+                .size(24.dp)
+                .align(Alignment.CenterHorizontally),
+            color = accent,
+            strokeWidth = 2.dp,
+        )
     }
 }
 
 @Composable
 private fun EmptyDashboardPanel() {
-    Panel {
+    DesignPanel {
         Text(
             text = "暂无仪表盘数据",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = DashboardText,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "启动 Companion 后下拉或点击刷新。",
+            text = "启动 Companion 后下拉刷新。",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = DashboardMuted,
         )
     }
-}
-
-@Composable
-private fun SourcePill(source: String) {
-    Surface(
-        shape = RoundedCornerShape(99.dp),
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.14f),
-    ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            text = formatSource(source),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun StatusDot(online: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(
-                if (online) {
-                    MaterialTheme.colorScheme.secondary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            ),
-    )
 }
 
 @Composable
 private fun ErrorMessage(message: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFF321820),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFE34D5A).copy(alpha = 0.32f),
+        ),
     ) {
         Text(
             modifier = Modifier.padding(12.dp),
             text = message,
-            color = MaterialTheme.colorScheme.error,
+            color = Color(0xFFFF8791),
             style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
 
 @Composable
-private fun Panel(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
+private fun DesignDivider() {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f),
-                shape = RoundedCornerShape(8.dp),
-            ),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content,
+            .height(1.dp)
+            .background(DashboardBorder),
+    )
+}
+
+private fun ProviderStatus.mainWindow(
+    fiveHour: QuotaWindowStatus?,
+    weekly: QuotaWindowStatus?,
+): QuotaWindowStatus? {
+    return when (id.lowercase(Locale.US)) {
+        "codex" -> weekly?.takeIf { it.percentLeft != null } ?: fiveHour ?: weekly
+        else -> fiveHour?.takeIf { it.percentLeft != null } ?: weekly ?: fiveHour
+    }
+}
+
+private fun ProviderStatus.visualSpec(): ProviderVisual {
+    return when (id.lowercase(Locale.US)) {
+        "codex" -> ProviderVisual(
+            accent = CodexAccent,
+            fallbackPlan = "Plus",
+        )
+        else -> ProviderVisual(
+            accent = ClaudeAccent,
+            fallbackPlan = "Max",
         )
     }
 }
+
+private data class ProviderVisual(
+    val accent: Color,
+    val fallbackPlan: String,
+) {
+    fun planLabel(planTier: String): String? {
+        return planTier.ifBlank { fallbackPlan }.takeIf { it.isNotBlank() }
+    }
+}
+
+private fun String?.windowShortLabel(): String {
+    return when (this) {
+        WindowTypes.Weekly -> "周"
+        WindowTypes.FiveHours -> "5H"
+        else -> "窗口"
+    }
+}
+
+private fun formatWindowUsage(window: QuotaWindowStatus?): String {
+    if (window == null) {
+        return "—"
+    }
+    val used = window.used?.let(::formatCompactCount)
+    val limit = window.limit?.let(::formatCompactCount)
+    return when {
+        used != null && limit != null -> "$used/$limit"
+        used != null -> used
+        limit != null -> "—/$limit"
+        else -> "—"
+    }
+}
+
+private fun formatCompactCount(value: Long): String {
+    val absolute = abs(value)
+    return when {
+        absolute >= 1_000_000_000 -> String.format(Locale.US, "%.1fB", value / 1_000_000_000.0)
+        absolute >= 1_000_000 -> String.format(Locale.US, "%.1fM", value / 1_000_000.0)
+        absolute >= 1_000 -> String.format(Locale.US, "%.1fK", value / 1_000.0)
+        else -> value.toString()
+    }
+}
+
+private fun formatWindowTimer(
+    window: QuotaWindowStatus?,
+    now: Instant,
+): String {
+    val resetsAt = window?.resetsAt ?: return "—"
+    val duration = Duration.between(now, resetsAt)
+    if (duration.isNegative || duration.isZero) {
+        return "正在恢复"
+    }
+
+    val remaining = formatDurationCompact(duration)
+    return if (window.windowType == WindowTypes.Weekly) {
+        "周窗口 $remaining 重置"
+    } else {
+        "约 $remaining 后满血"
+    }
+}
+
+private fun formatDurationCompact(duration: Duration): String {
+    val minutes = duration.toMinutes().coerceAtLeast(0)
+    val days = minutes / (24 * 60)
+    val hours = (minutes % (24 * 60)) / 60
+    val remainingMinutes = minutes % 60
+
+    return when {
+        days > 0 -> "${days}d ${hours}h"
+        hours > 0 -> "${hours}h ${remainingMinutes}m"
+        else -> "${remainingMinutes}m"
+    }
+}
+
+private fun sessionSummary(session: SessionStatus): String {
+    val provider = formatProviderName(session.providerId)
+    val project = session.projectPath.substringAfterLast('/').ifBlank { "未知项目" }
+    val state = when (session.state) {
+        "running" -> "正在跑"
+        "waiting" -> "等待确认"
+        "done" -> "已完成"
+        "error" -> "异常"
+        else -> session.state.ifBlank { "未知" }
+    }
+    return "$provider $state · $project"
+}
+
+private fun formatClock(value: Instant): String {
+    return ClockFormatter.format(value)
+}
+
+private val ClockFormatter = DateTimeFormatter
+    .ofPattern("HH:mm")
+    .withZone(ZoneId.systemDefault())
 
 private const val Tag = "CodeGaugeDashboard"

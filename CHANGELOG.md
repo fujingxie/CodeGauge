@@ -224,3 +224,12 @@
 - Updated dashboard and notification formatter tests for the Chinese copy.
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb screenshots for Dashboard / Activity / Settings and no `AndroidRuntime` / `FATAL EXCEPTION` crashes in `logcat`.
+
+## 2026-06-12 - Android dashboard 高精度还原
+
+- Added Dashboard visual primitives for the high-fidelity design baseline, including dark surface tokens, compact pills, status dots, and a custom Canvas quota ring gauge.
+- Reworked the Android Dashboard screen to match the design deck structure: connection sync strip, Claude/Codex circular quota cards, compact quota metrics, reset pill, and current session strip.
+- Updated the app dark theme and bottom navigation colors/icons to align with the dashboard design direction.
+- Kept the existing `/status` data flow and pull-to-refresh behavior while replacing the dashboard presentation layer.
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb after reinstalling and re-pairing Companion; checked the new Dashboard screenshot and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` crashes in `logcat`.

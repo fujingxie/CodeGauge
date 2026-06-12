@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,6 +15,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.codegauge.activity.ActivityRepository
 import com.codegauge.activity.ActivityStreamClient
 import com.codegauge.dashboard.DashboardRepository
@@ -38,14 +43,33 @@ fun MainTabsRoute(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = Color(0xFF111722),
+                tonalElevation = 0.dp,
             ) {
                 MainTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
-                        icon = { Text(tab.iconText) },
-                        label = { Text(tab.label) },
+                        icon = {
+                            Text(
+                                text = tab.iconText,
+                                fontSize = 23.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = tab.label,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = Color.Transparent,
+                        ),
                     )
                 }
             }
@@ -60,7 +84,6 @@ fun MainTabsRoute(
                 MainTab.Dashboard -> DashboardRoute(
                     pairing = pairing,
                     repository = dashboardRepository,
-                    onClearPairing = onClearPairing,
                 )
                 MainTab.Activity -> ActivityRoute(
                     pairing = pairing,
@@ -82,7 +105,7 @@ private enum class MainTab(
     val label: String,
     val iconText: String,
 ) {
-    Dashboard("仪表盘", "仪"),
-    Activity("活动", "动"),
-    Settings("设置", "设"),
+    Dashboard("仪表盘", "◒"),
+    Activity("活动", "⌁"),
+    Settings("设置", "⚙"),
 }

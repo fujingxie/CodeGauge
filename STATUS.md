@@ -37,6 +37,7 @@ Last updated: 2026-06-12
 - 设置页: Android 已新增 Settings 底部 Tab，可读取和保存通知开关、额度阈值和采集间隔。
 - 设置页: Android 设置页可展示 Companion 诊断摘要和已配对设备列表。
 - Android UI: 已完成第一轮中文化和设计基线对齐，覆盖配对页、仪表盘、活动页、设置页、底部导航、错误提示、通知兜底文案和额度单位展示。
+- Android UI-R1/R2: 已按高精度设计图完成首页视觉重构，包含暗色主题基线、环形额度仪表、顶部连接同步条、Provider 额度卡、当前会话条和设计稿风格底部导航。
 
 ## 进行中 / 待处理项
 
@@ -87,6 +88,8 @@ Last updated: 2026-06-12
 - 设置页: 修复点击 Settings 后 Compose 重组闪退；adb 复测 Dashboard → Settings 切换无 `AndroidRuntime` 崩溃。
 - Android UI: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过。
 - Android UI: adb 真机复测通过，已安装 debug APK 并截图检查 Dashboard / Activity / Settings 三页中文界面；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` 崩溃。
+- Android UI-R1/R2: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过。
+- Android UI-R1/R2: adb 真机复测通过，已安装 debug APK、重新配对 Companion、截图检查新 Dashboard；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` 崩溃。
 
 ## 已知问题和技术债务
 
@@ -144,3 +147,4 @@ Last updated: 2026-06-12
 - 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
 - Android 设置页沿用现有 OkHttp + `org.json` 网络层，不额外引入 serialization/Ktor；保存时 PATCH 当前完整设置，减少字段级脏状态复杂度。
 - Android UI 第一轮对齐以 `CodeGauge-完整方案.md` 和真机截图为依据；Claude 设计分享页当前无法被自动化读取，后续如提供设计导出或完整截图，可继续做像素级对齐。
+- 高精度 UI 设计图来自 `/Users/xiexiansheng/Downloads/document/CodeGauge____.pptx`，其中包含 25 张 1600×3000 手机界面图；UI-R1/R2 先落地 Dashboard，Activity、Settings、Pairing、Provider 详情页和 Widget 仍需后续分阶段还原。
