@@ -233,3 +233,12 @@
 - Kept the existing `/status` data flow and pull-to-refresh behavior while replacing the dashboard presentation layer.
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb after reinstalling and re-pairing Companion; checked the new Dashboard screenshot and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` crashes in `logcat`.
+
+## 2026-06-12 - Android Activity / Settings 高精度还原
+
+- 将 Dashboard 高精度视觉 primitives 抽到共享 `ui/design` 包，供 Dashboard、Activity 和 Settings 复用。
+- 重构 Activity 页为设计稿风格的连接状态条、当前会话卡片和事件流列表，保留原有 `/events` 与 `/stream` 数据流。
+- 重构 Settings 页为设计稿风格的连接卡、通知设置卡、阈值滑杆、采集间隔分段控件、诊断和设备列表。
+- 过滤 Activity 页面主动销毁 WebSocket 时的 `Socket closed` 误报，避免切换页面后污染崩溃排查日志。
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb after reinstalling; checked Activity / Settings screenshots and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugeActivity` crashes in `logcat`.

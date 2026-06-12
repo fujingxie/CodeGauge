@@ -1,29 +1,29 @@
 package com.codegauge.ui.settings
 
 import android.util.Log
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,8 +34,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.codegauge.pairing.PairingRecord
 import com.codegauge.settings.AppSettings
@@ -43,6 +44,17 @@ import com.codegauge.settings.CompanionDiagnostics
 import com.codegauge.settings.PairedDevice
 import com.codegauge.settings.SettingsRepository
 import com.codegauge.settings.SettingsSnapshot
+import com.codegauge.ui.design.DashboardBackground
+import com.codegauge.ui.design.DashboardBorder
+import com.codegauge.ui.design.DashboardMuted
+import com.codegauge.ui.design.DashboardSurface
+import com.codegauge.ui.design.DashboardSurfaceRaised
+import com.codegauge.ui.design.DashboardText
+import com.codegauge.ui.design.DesignDot
+import com.codegauge.ui.design.DesignPanel
+import com.codegauge.ui.design.DesignPill
+import com.codegauge.ui.design.GoodGreen
+import com.codegauge.ui.design.WarningAmber
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -110,20 +122,23 @@ fun SettingsRoute(
     val currentDraft = draft
     val savedSettings = snapshot?.settings
     val intervalSeconds = intervalText.toIntOrNull()
+    val hasChanges = currentDraft != null && currentDraft != savedSettings
     val canSave = currentDraft != null &&
         currentDraft.warningThreshold < currentDraft.criticalThreshold &&
         intervalSeconds != null &&
         intervalSeconds > 0 &&
         !isSaving &&
-        currentDraft != savedSettings
+        hasChanges
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(DashboardBackground)
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        SettingsStatusStrip(pairing)
         SettingsHeader()
 
         errorMessage?.let {
@@ -133,406 +148,488 @@ fun SettingsRoute(
         if (isLoading && snapshot == null) {
             LoadingPanel()
         } else {
-            SettingsActionsPanel(
+            ConnectionPanel(
                 pairing = pairing,
-                hasChanges = currentDraft != null && currentDraft != savedSettings,
+                hasChanges = hasChanges,
                 canSave = canSave,
                 isSaving = isSaving,
+                diagnostics = snapshot?.diagnostics,
                 onRefresh = {
                     scope.launch {
                         loadSettings()
                     }
                 },
                 onSave = {
-                    val settings = currentDraft ?: return@SettingsActionsPanel
-                    val parsedInterval = intervalSeconds ?: return@SettingsActionsPanel
-                    scope.launch {
-                        saveSettings(settings.copy(collectIntervalSeconds = parsedInterval))
+                    val settings = currentDraft
+                    val parsedInterval = intervalSeconds
+                    if (settings != null && parsedInterval != null) {
+                        scope.launch {
+                            saveSettings(settings.copy(collectIntervalSeconds = parsedInterval))
+                        }
                     }
                 },
                 onClearPairing = onClearPairing,
             )
 
             currentDraft?.let { settings ->
-                NotificationPanel(
+                NotificationSection(
                     settings = settings,
                     onChange = {
                         draft = it
                     },
                 )
-                ThresholdPanel(
-                    settings = settings,
-                    intervalText = intervalText,
-                    onSettingsChange = {
-                        draft = it
-                    },
-                    onIntervalTextChange = { value ->
-                        intervalText = value.filter(Char::isDigit).take(5)
-                        intervalText.toIntOrNull()?.let { seconds ->
-                            draft = settings.copy(collectIntervalSeconds = seconds)
-                        }
+                CollectionSection(
+                    intervalSeconds = intervalSeconds ?: settings.collectIntervalSeconds,
+                    onIntervalChange = { seconds ->
+                        intervalText = seconds.toString()
+                        draft = settings.copy(collectIntervalSeconds = seconds)
                     },
                 )
             }
 
-            snapshot?.diagnostics?.let {
-                DiagnosticsPanel(it)
-            }
-            DevicesPanel(snapshot?.devices.orEmpty())
+            DiagnosticsSection(snapshot?.diagnostics)
+            DevicesSection(snapshot?.devices.orEmpty())
         }
+    }
+}
+
+@Composable
+private fun SettingsStatusStrip(pairing: PairingRecord) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DesignDot(color = GoodGreen, glow = true)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${pairing.serverName} · 已连接",
+                style = MaterialTheme.typography.titleSmall,
+                color = DashboardText,
+                maxLines = 1,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Text(
+            text = "设置",
+            style = MaterialTheme.typography.bodySmall,
+            color = DashboardMuted,
+        )
     }
 }
 
 @Composable
 private fun SettingsHeader() {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = "设置",
             style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
+            color = DashboardText,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "通知偏好、连接诊断与配对设备",
+            text = "通知、采集和连接诊断",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = DashboardMuted,
         )
     }
 }
 
 @Composable
-private fun SettingsActionsPanel(
+private fun ConnectionPanel(
     pairing: PairingRecord,
     hasChanges: Boolean,
     canSave: Boolean,
     isSaving: Boolean,
+    diagnostics: CompanionDiagnostics?,
     onRefresh: () -> Unit,
     onSave: () -> Unit,
     onClearPairing: () -> Unit,
 ) {
-    Panel {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = pairing.serverName,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = pairing.serverUrl,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = if (hasChanges) "有未保存的修改" else "设置已同步",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (hasChanges) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
+    DesignPanel(
+        contentPadding = 0.dp,
+        contentSpacing = 0.dp,
+    ) {
+        SettingInfoRow(
+            title = pairing.serverName,
+            detail = pairing.serverUrl,
+            trailing = {
+                DesignPill(
+                    text = if (diagnostics?.ok != false) "已连接" else "异常",
+                    accent = if (diagnostics?.ok != false) GoodGreen else Color(0xFFE34D5A),
+                    filled = true,
+                )
+            },
+        )
+        Divider()
+        SettingInfoRow(
+            title = "最后心跳",
+            detail = if (hasChanges) "有未保存的修改" else "设置已同步",
+            trailingText = formatInstant(diagnostics?.serverTime),
+        )
+        Divider()
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Button(
+            ActionChip(
                 modifier = Modifier.weight(1f),
+                text = if (isSaving) "保存中" else "保存",
                 enabled = canSave,
+                highlighted = hasChanges,
                 onClick = onSave,
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text("保存")
-                }
-            }
-            OutlinedButton(
+            )
+            ActionChip(
                 modifier = Modifier.weight(1f),
+                text = "刷新",
                 onClick = onRefresh,
-            ) {
-                Text("刷新")
-            }
-        }
-
-        OutlinedButton(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onClearPairing,
-        ) {
-            Text("重新配对")
+            )
+            ActionChip(
+                modifier = Modifier.weight(1f),
+                text = "重配",
+                onClick = onClearPairing,
+            )
         }
     }
 }
 
 @Composable
-private fun NotificationPanel(
+private fun NotificationSection(
     settings: AppSettings,
     onChange: (AppSettings) -> Unit,
 ) {
-    Panel {
-        Text(
-            text = "通知",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
-        SettingSwitchRow(
-            title = "启用通知",
-            detail = "控制 CodeGauge 的所有手机通知。",
+    SectionLabel("通知")
+    DesignPanel(
+        contentPadding = 0.dp,
+        contentSpacing = 0.dp,
+    ) {
+        SwitchRow(
+            title = "通知",
             checked = settings.notificationsEnabled,
             onCheckedChange = {
                 onChange(settings.copy(notificationsEnabled = it))
             },
         )
-        SettingSwitchRow(
-            title = "额度恢复提醒",
-            detail = "额度低于预警线后恢复时提醒。",
+        Divider()
+        ThresholdControlRow(
+            settings = settings,
+            onChange = onChange,
+        )
+        Divider()
+        SwitchRow(
+            title = "满血提醒",
             checked = settings.quotaResetNotifications,
             enabled = settings.notificationsEnabled,
             onCheckedChange = {
                 onChange(settings.copy(quotaResetNotifications = it))
             },
         )
-        SettingSwitchRow(
-            title = "任务完成提醒",
-            detail = "Claude / Codex 会话完成时提醒。",
+        Divider()
+        SwitchRow(
+            title = "任务完成",
             checked = settings.taskDoneNotifications,
             enabled = settings.notificationsEnabled,
             onCheckedChange = {
                 onChange(settings.copy(taskDoneNotifications = it))
             },
         )
+        Divider()
+        SwitchRow(
+            title = "需要确认",
+            detail = "等待输入时提醒",
+            checked = true,
+            enabled = false,
+            onCheckedChange = {},
+        )
     }
 }
 
 @Composable
-private fun ThresholdPanel(
+private fun ThresholdControlRow(
     settings: AppSettings,
-    intervalText: String,
-    onSettingsChange: (AppSettings) -> Unit,
-    onIntervalTextChange: (String) -> Unit,
+    onChange: (AppSettings) -> Unit,
 ) {
-    Panel {
-        Text(
-            text = "额度阈值",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
-        ThresholdSlider(
-            title = "预警",
-            value = settings.warningThreshold,
-            range = 0f..99f,
-            onValueChange = { value ->
-                val next = value.roundToInt().coerceIn(0, settings.criticalThreshold - 1)
-                onSettingsChange(settings.copy(warningThreshold = next))
-            },
-        )
-        ThresholdSlider(
-            title = "紧急",
-            value = settings.criticalThreshold,
-            range = 1f..100f,
-            onValueChange = { value ->
-                val next = value.roundToInt().coerceIn(settings.warningThreshold + 1, 100)
-                onSettingsChange(settings.copy(criticalThreshold = next))
-            },
-        )
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = intervalText,
-            onValueChange = onIntervalTextChange,
-            label = { Text("采集间隔（秒）") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            isError = intervalText.toIntOrNull()?.let { it <= 0 } ?: true,
-        )
-    }
-}
-
-@Composable
-private fun DiagnosticsPanel(diagnostics: CompanionDiagnostics) {
-    Panel {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Companion",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "${diagnostics.serverName} · ${diagnostics.version}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            StatusPill(if (diagnostics.ok) "正常" else "异常")
-        }
-        MetricRow("服务", "${diagnostics.availableProviderCount}/${diagnostics.providerCount} 可用")
-        MetricRow("会话", "${diagnostics.runningSessionCount} 运行中 · ${diagnostics.waitingSessionCount} 等待确认")
-        MetricRow("设备", "${diagnostics.pairedDeviceCount} 台已配对")
-        MetricRow("服务时间", formatInstant(diagnostics.serverTime))
-        MetricRow("最近事件", formatInstant(diagnostics.latestEventAt))
-    }
-}
-
-@Composable
-private fun DevicesPanel(devices: List<PairedDevice>) {
-    Panel {
-        Text(
-            text = "已配对设备",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
-        if (devices.isEmpty()) {
-            Text(
-                text = "暂无已配对设备",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            devices.forEach { device ->
-                DeviceRow(device)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingSwitchRow(
-    title: String,
-    detail: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(
-            checked = checked,
-            enabled = enabled,
-            onCheckedChange = onCheckedChange,
-        )
-    }
-}
-
-@Composable
-private fun ThresholdSlider(
-    title: String,
-    value: Int,
-    range: ClosedFloatingPointRange<Float>,
-    onValueChange: (Float) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "$value%",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                text = "额度阈值提醒",
+                style = MaterialTheme.typography.titleMedium,
+                color = DashboardText,
                 fontWeight = FontWeight.Bold,
             )
+            Text(
+                text = "预警 ${settings.warningThreshold}% · 告急 ${settings.criticalThreshold}%",
+                style = MaterialTheme.typography.bodyMedium,
+                color = WarningAmber,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
-        Slider(
-            value = value.toFloat(),
-            onValueChange = onValueChange,
-            valueRange = range,
+        RangeSlider(
+            value = settings.warningThreshold.toFloat()..settings.criticalThreshold.toFloat(),
+            valueRange = 0f..100f,
+            onValueChange = { range ->
+                val warning = range.start.roundToInt().coerceIn(0, 99)
+                val critical = range.endInclusive.roundToInt().coerceIn(warning + 1, 100)
+                onChange(
+                    settings.copy(
+                        warningThreshold = warning,
+                        criticalThreshold = critical,
+                    ),
+                )
+            },
         )
     }
 }
 
 @Composable
-private fun MetricRow(
-    label: String,
-    value: String,
+private fun CollectionSection(
+    intervalSeconds: Int,
+    onIntervalChange: (Int) -> Unit,
+) {
+    SectionLabel("采集")
+    DesignPanel(
+        contentPadding = 14.dp,
+        contentSpacing = 12.dp,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "采集间隔",
+                style = MaterialTheme.typography.titleMedium,
+                color = DashboardText,
+                fontWeight = FontWeight.Bold,
+            )
+            SegmentedInterval(
+                currentSeconds = intervalSeconds,
+                onChange = onIntervalChange,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentedInterval(
+    currentSeconds: Int,
+    onChange: (Int) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = DashboardSurfaceRaised,
+        border = BorderStroke(1.dp, DashboardBorder),
+    ) {
+        Row(modifier = Modifier.padding(3.dp)) {
+            IntervalOption.entries.forEach { option ->
+                val selected = currentSeconds == option.seconds
+                Surface(
+                    modifier = Modifier.clickable { onChange(option.seconds) },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (selected) DashboardBackground else Color.Transparent,
+                ) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                        text = option.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (selected) DashboardText else DashboardMuted,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsSection(diagnostics: CompanionDiagnostics?) {
+    SectionLabel("诊断 / 关于")
+    DesignPanel(
+        contentPadding = 0.dp,
+        contentSpacing = 0.dp,
+    ) {
+        SettingInfoRow(
+            title = "诊断日志",
+            trailingText = "›",
+        )
+        Divider()
+        SettingInfoRow(
+            title = "版本",
+            trailingText = diagnostics?.version ?: "1.0.0",
+        )
+        Divider()
+        SettingInfoRow(
+            title = "服务",
+            trailingText = diagnostics?.let { "${it.availableProviderCount}/${it.providerCount} 可用" } ?: "未知",
+        )
+        Divider()
+        SettingInfoRow(
+            title = "会话",
+            trailingText = diagnostics?.let { "${it.runningSessionCount} 运行 · ${it.waitingSessionCount} 等待" } ?: "未知",
+        )
+    }
+}
+
+@Composable
+private fun DevicesSection(devices: List<PairedDevice>) {
+    if (devices.isEmpty()) {
+        return
+    }
+    SectionLabel("已配对设备")
+    DesignPanel(
+        contentPadding = 0.dp,
+        contentSpacing = 0.dp,
+    ) {
+        devices.forEachIndexed { index, device ->
+            SettingInfoRow(
+                title = device.name.ifBlank { "未知设备" },
+                detail = "最近在线 ${formatInstant(device.lastSeenAt)}",
+            )
+            if (index != devices.lastIndex) {
+                Divider()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    title: String,
+    detail: String? = null,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    SettingInfoRow(
+        title = title,
+        detail = detail,
+        enabled = enabled,
+        trailing = {
+            Switch(
+                checked = checked,
+                enabled = enabled,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = DashboardText,
+                    checkedTrackColor = Color(0xFFE97857),
+                    uncheckedThumbColor = DashboardMuted,
+                    uncheckedTrackColor = DashboardSurfaceRaised,
+                ),
+            )
+        },
+    )
+}
+
+@Composable
+private fun SettingInfoRow(
+    title: String,
+    detail: String? = null,
+    trailingText: String? = null,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (enabled) DashboardText else DashboardMuted.copy(alpha = 0.48f),
+                fontWeight = FontWeight.Bold,
+            )
+            detail?.let {
+                Text(
+                    modifier = Modifier.padding(top = 2.dp),
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (enabled) DashboardMuted else DashboardMuted.copy(alpha = 0.42f),
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
+        trailing?.invoke() ?: trailingText?.let {
+            Text(
+                modifier = Modifier.padding(start = 12.dp),
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = DashboardMuted,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
 @Composable
-private fun DeviceRow(device: PairedDevice) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = device.name.ifBlank { "未知设备" },
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = "最近在线 ${formatInstant(device.lastSeenAt)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun StatusPill(text: String) {
+private fun ActionChip(
+    text: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    highlighted: Boolean = false,
+    onClick: () -> Unit,
+) {
     Surface(
-        shape = RoundedCornerShape(99.dp),
-        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
+        modifier = modifier.clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = if (highlighted && enabled) Color(0xFFE97857) else DashboardSurfaceRaised,
+        border = BorderStroke(1.dp, if (enabled) DashboardBorder else DashboardBorder.copy(alpha = 0.42f)),
     ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.secondary,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Box(
+            modifier = Modifier.padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = when {
+                    !enabled -> DashboardMuted.copy(alpha = 0.48f)
+                    highlighted -> DashboardBackground
+                    else -> DashboardText
+                },
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        color = DashboardMuted,
+        fontWeight = FontWeight.Bold,
+    )
+}
+
+@Composable
+private fun Divider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(DashboardBorder),
+    )
 }
 
 @Composable
@@ -543,7 +640,10 @@ private fun LoadingPanel() {
             .height(220.dp),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(
+            color = GoodGreen,
+            strokeWidth = 2.dp,
+        )
     }
 }
 
@@ -551,36 +651,15 @@ private fun LoadingPanel() {
 private fun ErrorMessage(message: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFF321820),
+        border = BorderStroke(1.dp, Color(0xFFE34D5A).copy(alpha = 0.32f)),
     ) {
         Text(
             modifier = Modifier.padding(12.dp),
             text = message,
-            color = MaterialTheme.colorScheme.error,
+            color = Color(0xFFFF8791),
             style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-@Composable
-private fun Panel(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f),
-                shape = RoundedCornerShape(8.dp),
-            ),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content,
         )
     }
 }
@@ -592,8 +671,18 @@ private fun formatInstant(value: Instant?): String {
     return TimeFormatter.format(value)
 }
 
+private enum class IntervalOption(
+    val label: String,
+    val seconds: Int,
+) {
+    Realtime("实时", 5),
+    ThirtySeconds("30s", 30),
+    OneMinute("1m", 60),
+    FiveMinutes("5m", 300),
+}
+
 private val TimeFormatter = DateTimeFormatter
-    .ofPattern("M月d日 HH:mm")
+    .ofPattern("HH:mm")
     .withZone(ZoneId.systemDefault())
 
 private const val Tag = "CodeGaugeSettings"

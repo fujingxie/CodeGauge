@@ -1,4 +1,4 @@
-package com.codegauge.ui.dashboard
+package com.codegauge.ui.design
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
@@ -49,6 +50,8 @@ internal val WarningAmber = Color(0xFFE8C24A)
 internal fun DesignPanel(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
+    contentPadding: Dp = 9.dp,
+    contentSpacing: Dp = 6.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -67,8 +70,8 @@ internal fun DesignPanel(
         tonalElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier.padding(9.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(contentPadding),
+            verticalArrangement = Arrangement.spacedBy(contentSpacing),
             content = content,
         )
     }
