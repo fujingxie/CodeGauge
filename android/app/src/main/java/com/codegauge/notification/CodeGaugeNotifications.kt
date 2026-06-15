@@ -59,6 +59,7 @@ class CodeGaugeNotifications(
     fun show(spec: NotificationSpec) {
         val channel = when (spec.kind) {
             NotificationKind.Alert,
+            NotificationKind.QuotaReset,
             NotificationKind.Waiting,
             NotificationKind.Done,
             -> ChannelEvents

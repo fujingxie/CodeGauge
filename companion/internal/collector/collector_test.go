@@ -368,6 +368,45 @@ func TestRunCollectsImmediatelyAndStopsOnContextCancel(t *testing.T) {
 	}
 }
 
+func TestRunWithIntervalCollectsAgainWhenSettingsChange(t *testing.T) {
+	db := openTestStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	settingsChanged := make(chan struct{}, 1)
+	runner := &fakeRunner{
+		outputs: map[string][]byte{
+			"ccusage claude blocks --json --recent --offline --token-limit max": []byte(`{"blocks":[]}`),
+			"ccusage claude daily --json --offline":                             []byte(`{"daily":[{"date":"2026-06-05","totalTokens":100}]}`),
+			"ccusage codex daily --json --offline":                              []byte(`{"daily":[{"date":"2026-06-05","totalTokens":200}]}`),
+		},
+		onCommand: func(count int) {
+			if count == 3 {
+				settingsChanged <- struct{}{}
+			}
+			if count == 6 {
+				cancel()
+			}
+		},
+	}
+	collector := New(db, Options{
+		CCUsagePath: "ccusage",
+		Runner:      runner,
+		Now:         func() time.Time { return time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC) },
+	})
+
+	err := collector.RunWithInterval(
+		ctx,
+		func() time.Duration { return time.Hour },
+		settingsChanged,
+	)
+
+	if err != nil {
+		t.Fatalf("RunWithInterval: %v", err)
+	}
+	if len(runner.commands) != 6 {
+		t.Fatalf("commands length = %d, want second collection after settings change", len(runner.commands))
+	}
+}
+
 func openTestStore(t *testing.T) *store.Store {
 	t.Helper()
 

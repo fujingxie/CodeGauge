@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -88,7 +89,13 @@ func run() error {
 		},
 	})
 	go func() {
-		if err := quotaCollector.Run(appCtx, time.Duration(cfg.CollectIntervalSeconds)*time.Second); err != nil {
+		if err := quotaCollector.RunWithInterval(
+			appCtx,
+			func() time.Duration {
+				return collectInterval(notifyingStore, cfg.CollectIntervalSeconds)
+			},
+			notifyingStore.SettingsChanged(),
+		); err != nil {
 			log.Printf("collector stopped: %v", err)
 		}
 	}()
@@ -181,6 +188,38 @@ func run() error {
 	}
 }
 
+type settingsLister interface {
+	ListSettings() ([]store.Setting, error)
+}
+
+func collectInterval(settings settingsLister, fallbackSeconds int) time.Duration {
+	if fallbackSeconds <= 0 {
+		fallbackSeconds = 60
+	}
+
+	list, err := settings.ListSettings()
+	if err != nil {
+		log.Printf("read collect interval setting: %v", err)
+		return time.Duration(fallbackSeconds) * time.Second
+	}
+	for _, setting := range list {
+		if setting.Key != settingCollectIntervalSeconds {
+			continue
+		}
+		seconds, err := strconv.Atoi(setting.Value)
+		if err != nil {
+			log.Printf("ignore invalid collect interval setting %q: %v", setting.Value, err)
+			return time.Duration(fallbackSeconds) * time.Second
+		}
+		if seconds <= 0 {
+			log.Printf("ignore non-positive collect interval setting: %d", seconds)
+			return time.Duration(fallbackSeconds) * time.Second
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	return time.Duration(fallbackSeconds) * time.Second
+}
+
 func generatePairCode() (string, error) {
 	value, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	if err != nil {
@@ -188,3 +227,5 @@ func generatePairCode() (string, error) {
 	}
 	return fmt.Sprintf("%06d", value.Int64()), nil
 }
+
+const settingCollectIntervalSeconds = "collect_interval_seconds"

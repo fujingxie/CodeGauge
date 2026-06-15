@@ -115,6 +115,106 @@ func TestNotifyingStorePublishesQuotaUpdateAndThresholdAlert(t *testing.T) {
 	}
 }
 
+func TestNotifyingStoreUsesPersistedThresholdSettings(t *testing.T) {
+	db := openStreamTestStore(t)
+	hub := NewHub()
+	subscription := hub.Subscribe()
+	defer subscription.Close()
+	notifyingStore := NewNotifyingStore(db, hub, Options{
+		WarningThreshold:  80,
+		CriticalThreshold: 95,
+	})
+	if err := notifyingStore.UpsertProvider(store.Provider{ID: store.ProviderClaude, Name: "Claude", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider: %v", err)
+	}
+
+	if err := notifyingStore.SetSetting("warning_threshold", "70"); err != nil {
+		t.Fatalf("SetSetting warning_threshold: %v", err)
+	}
+	if err := notifyingStore.SetSetting("critical_threshold", "90"); err != nil {
+		t.Fatalf("SetSetting critical_threshold: %v", err)
+	}
+
+	receiveSettingsChange(t, notifyingStore.SettingsChanged())
+
+	limit := int64(100)
+	used := int64(65)
+	if err := notifyingStore.UpsertQuotaWindow(store.QuotaWindow{
+		ProviderID: store.ProviderClaude,
+		WindowType: store.WindowTypeFiveHours,
+		Used:       &used,
+		Limit:      &limit,
+		Source:     store.SourceCCUsage,
+		UpdatedAt:  testStreamNow(),
+	}); err != nil {
+		t.Fatalf("first UpsertQuotaWindow: %v", err)
+	}
+	receiveMessage(t, subscription.Messages())
+	assertNoMessage(t, subscription.Messages())
+
+	used = 75
+	if err := notifyingStore.UpsertQuotaWindow(store.QuotaWindow{
+		ProviderID: store.ProviderClaude,
+		WindowType: store.WindowTypeFiveHours,
+		Used:       &used,
+		Limit:      &limit,
+		Source:     store.SourceCCUsage,
+		UpdatedAt:  testStreamNow().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("second UpsertQuotaWindow: %v", err)
+	}
+
+	receiveMessage(t, subscription.Messages())
+	alertMessage := receiveMessage(t, subscription.Messages())
+	alert, ok := alertMessage.Data.(Alert)
+	if !ok {
+		t.Fatalf("alert data type = %T, want Alert", alertMessage.Data)
+	}
+	if alert.Severity != AlertSeverityWarning || alert.Threshold != 70 || alert.UsagePercent != 75 {
+		t.Fatalf("alert = %+v, want warning at 75/70", alert)
+	}
+}
+
+func TestNotifyingStoreDoesNotAlertWhenPreviousUsageIsUnknown(t *testing.T) {
+	db := openStreamTestStore(t)
+	hub := NewHub()
+	subscription := hub.Subscribe()
+	defer subscription.Close()
+	notifyingStore := NewNotifyingStore(db, hub, Options{
+		WarningThreshold:  70,
+		CriticalThreshold: 90,
+	})
+	if err := notifyingStore.UpsertProvider(store.Provider{ID: store.ProviderCodex, Name: "Codex", Available: true}); err != nil {
+		t.Fatalf("UpsertProvider: %v", err)
+	}
+
+	used := int64(100)
+	if err := notifyingStore.UpsertQuotaWindow(store.QuotaWindow{
+		ProviderID: store.ProviderCodex,
+		WindowType: store.WindowTypeWeekly,
+		Used:       &used,
+		Source:     store.SourceCCUsage,
+		UpdatedAt:  testStreamNow(),
+	}); err != nil {
+		t.Fatalf("first UpsertQuotaWindow: %v", err)
+	}
+	receiveMessage(t, subscription.Messages())
+	assertNoMessage(t, subscription.Messages())
+
+	percentLeft := 25
+	if err := notifyingStore.UpsertQuotaWindow(store.QuotaWindow{
+		ProviderID:  store.ProviderCodex,
+		WindowType:  store.WindowTypeWeekly,
+		PercentLeft: &percentLeft,
+		Source:      store.SourceEndpoint,
+		UpdatedAt:   testStreamNow().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("second UpsertQuotaWindow: %v", err)
+	}
+	receiveMessage(t, subscription.Messages())
+	assertNoMessage(t, subscription.Messages())
+}
+
 func TestNotifyingStorePublishesSessionUpdate(t *testing.T) {
 	db := openStreamTestStore(t)
 	hub := NewHub()
@@ -199,6 +299,15 @@ func openStreamTestStore(t *testing.T) *store.Store {
 		}
 	})
 	return db
+}
+
+func receiveSettingsChange(t *testing.T, changes <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-changes:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for settings change")
+	}
 }
 
 func receiveMessage(t *testing.T, messages <-chan Message) Message {

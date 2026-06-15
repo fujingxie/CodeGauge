@@ -11,7 +11,12 @@ import com.codegauge.activity.ActivityStreamConnection
 import com.codegauge.activity.OkHttpActivityStreamClient
 import com.codegauge.notification.CodeGaugeNotifications
 import com.codegauge.notification.NotificationMapper
+import com.codegauge.notification.NotificationPolicy
 import com.codegauge.pairing.EncryptedPairingStore
+import com.codegauge.pairing.PairingRecord
+import com.codegauge.settings.AppSettings
+import com.codegauge.settings.OkHttpSettingsApi
+import com.codegauge.settings.SettingsApi
 import com.codegauge.widget.CodeGaugeWidgetScheduler
 import com.codegauge.widget.CodeGaugeWidgetUpdater
 import kotlinx.coroutines.CompletableDeferred
@@ -27,6 +32,7 @@ class CodeGaugeListenerService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var notifications: CodeGaugeNotifications
     private lateinit var streamClient: ActivityStreamClient
+    private lateinit var settingsApi: SettingsApi
 
     private var connection: ActivityStreamConnection? = null
     private var listeningStarted = false
@@ -36,6 +42,7 @@ class CodeGaugeListenerService : Service() {
         notifications = CodeGaugeNotifications(this)
         notifications.createChannels()
         streamClient = OkHttpActivityStreamClient()
+        settingsApi = OkHttpSettingsApi()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -86,7 +93,14 @@ class CodeGaugeListenerService : Service() {
                     pairing = pairing,
                     onMessage = { message ->
                         NotificationMapper.map(message)?.let { spec ->
-                            notifications.show(spec)
+                            serviceScope.launch {
+                                val settings = loadNotificationSettings(pairing)
+                                if (settings != null && NotificationPolicy.shouldShow(settings, spec)) {
+                                    notifications.show(spec)
+                                } else {
+                                    Log.i(Tag, "Notification suppressed by settings: ${spec.kind}")
+                                }
+                            }
                         }
                         serviceScope.launch {
                             CodeGaugeWidgetUpdater.refresh(this@CodeGaugeListenerService)
@@ -108,6 +122,15 @@ class CodeGaugeListenerService : Service() {
                 delay(reconnectDelayMs)
                 reconnectDelayMs = (reconnectDelayMs * 2).coerceAtMost(30_000L)
             }
+        }
+    }
+
+    private suspend fun loadNotificationSettings(pairing: PairingRecord): AppSettings? {
+        return runCatching {
+            settingsApi.settings(pairing)
+        }.getOrElse { error ->
+            Log.w(Tag, "Load notification settings failed; suppressing business notification", error)
+            null
         }
     }
 

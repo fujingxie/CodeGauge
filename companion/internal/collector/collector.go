@@ -106,19 +106,45 @@ func (c *Collector) Run(ctx context.Context, interval time.Duration) error {
 		return fmt.Errorf("collector interval must be positive, got %s", interval)
 	}
 
+	return c.RunWithInterval(ctx, func() time.Duration { return interval }, nil)
+}
+
+func (c *Collector) RunWithInterval(
+	ctx context.Context,
+	interval func() time.Duration,
+	settingsChanged <-chan struct{},
+) error {
+	if interval == nil {
+		return fmt.Errorf("collector interval provider is nil")
+	}
+
 	for {
 		if err := c.CollectOnce(ctx); err != nil {
 			log.Printf("collect quota snapshot: %v", err)
 		}
 
-		timer := time.NewTimer(interval)
+		currentInterval := interval()
+		if currentInterval <= 0 {
+			return fmt.Errorf("collector interval must be positive, got %s", currentInterval)
+		}
+
+		timer := time.NewTimer(currentInterval)
 		select {
 		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
+			stopTimer(timer)
 			return nil
+		case <-settingsChanged:
+			stopTimer(timer)
 		case <-timer.C:
+		}
+	}
+}
+
+func stopTimer(timer *time.Timer) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
 		}
 	}
 }

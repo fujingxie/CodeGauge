@@ -1,6 +1,8 @@
 package stream
 
 import (
+	"log"
+	"strconv"
 	"time"
 
 	"github.com/xiexiansheng/codegauge/companion/internal/store"
@@ -33,6 +35,7 @@ type NotifyingStore struct {
 	hub               *Hub
 	warningThreshold  int
 	criticalThreshold int
+	settingsChanged   chan struct{}
 }
 
 type QuotaUpdate struct {
@@ -89,6 +92,7 @@ func NewNotifyingStore(inner Store, hub *Hub, options Options) *NotifyingStore {
 		hub:               hub,
 		warningThreshold:  warningThreshold,
 		criticalThreshold: criticalThreshold,
+		settingsChanged:   make(chan struct{}, 1),
 	}
 }
 
@@ -111,6 +115,14 @@ func (s *NotifyingStore) UpsertQuotaWindow(window store.QuotaWindow) error {
 
 	s.hub.Publish(Message{EventType: EventTypeQuotaUpdate, Data: quotaUpdate(window)})
 	if alert, ok := s.thresholdAlert(previous, window); ok {
+		log.Printf(
+			"quota alert: provider=%s window=%s severity=%s threshold=%d usage=%d",
+			alert.ProviderID,
+			alert.WindowType,
+			alert.Severity,
+			alert.Threshold,
+			alert.UsagePercent,
+		)
 		s.hub.Publish(Message{EventType: EventTypeAlert, Data: alert})
 	}
 	return nil
@@ -165,11 +177,26 @@ func (s *NotifyingStore) GetDevicePairingByToken(token string) (store.DevicePair
 }
 
 func (s *NotifyingStore) SetSetting(key string, value string) error {
-	return s.inner.SetSetting(key, value)
+	if err := s.inner.SetSetting(key, value); err != nil {
+		return err
+	}
+	s.notifySettingsChanged()
+	return nil
 }
 
 func (s *NotifyingStore) ListSettings() ([]store.Setting, error) {
 	return s.inner.ListSettings()
+}
+
+func (s *NotifyingStore) SettingsChanged() <-chan struct{} {
+	return s.settingsChanged
+}
+
+func (s *NotifyingStore) notifySettingsChanged() {
+	select {
+	case s.settingsChanged <- struct{}{}:
+	default:
+	}
 }
 
 func (s *NotifyingStore) previousQuotaWindow(providerID string, windowType string) (*store.QuotaWindow, error) {
@@ -190,23 +217,51 @@ func (s *NotifyingStore) thresholdAlert(previous *store.QuotaWindow, current sto
 	if !ok {
 		return Alert{}, false
 	}
+	warningThreshold, criticalThreshold := s.thresholds()
 	previousUsage := 0
 	if previous != nil {
-		if value, ok := usagePercent(*previous); ok {
-			previousUsage = value
+		value, ok := usagePercent(*previous)
+		if !ok {
+			return Alert{}, false
 		}
+		previousUsage = value
 	}
 
-	if previous != nil && previousUsage >= s.warningThreshold && currentUsage < s.warningThreshold {
-		return alert(current, AlertSeverityReset, s.warningThreshold, currentUsage), true
+	if previous != nil && previousUsage >= warningThreshold && currentUsage < warningThreshold {
+		return alert(current, AlertSeverityReset, warningThreshold, currentUsage), true
 	}
-	if previousUsage < s.criticalThreshold && currentUsage >= s.criticalThreshold {
-		return alert(current, AlertSeverityCritical, s.criticalThreshold, currentUsage), true
+	if previousUsage < criticalThreshold && currentUsage >= criticalThreshold {
+		return alert(current, AlertSeverityCritical, criticalThreshold, currentUsage), true
 	}
-	if previousUsage < s.warningThreshold && currentUsage >= s.warningThreshold {
-		return alert(current, AlertSeverityWarning, s.warningThreshold, currentUsage), true
+	if previousUsage < warningThreshold && currentUsage >= warningThreshold {
+		return alert(current, AlertSeverityWarning, warningThreshold, currentUsage), true
 	}
 	return Alert{}, false
+}
+
+func (s *NotifyingStore) thresholds() (int, int) {
+	settings, err := s.inner.ListSettings()
+	if err != nil {
+		log.Printf("read alert thresholds from settings: %v", err)
+		return s.warningThreshold, s.criticalThreshold
+	}
+
+	values := settingValues(settings)
+	warningThreshold := settingInt(values, settingWarningThreshold, s.warningThreshold)
+	criticalThreshold := settingInt(values, settingCriticalThreshold, s.criticalThreshold)
+	if warningThreshold < 0 || warningThreshold > 100 {
+		log.Printf("ignore invalid warning threshold setting: %d", warningThreshold)
+		return s.warningThreshold, s.criticalThreshold
+	}
+	if criticalThreshold < 0 || criticalThreshold > 100 {
+		log.Printf("ignore invalid critical threshold setting: %d", criticalThreshold)
+		return s.warningThreshold, s.criticalThreshold
+	}
+	if warningThreshold >= criticalThreshold {
+		log.Printf("ignore invalid alert threshold settings: warning=%d critical=%d", warningThreshold, criticalThreshold)
+		return s.warningThreshold, s.criticalThreshold
+	}
+	return warningThreshold, criticalThreshold
 }
 
 func usagePercent(window store.QuotaWindow) (int, bool) {
@@ -271,4 +326,30 @@ func clampPercent(value int) int {
 		return 100
 	}
 	return value
+}
+
+const (
+	settingWarningThreshold  = "warning_threshold"
+	settingCriticalThreshold = "critical_threshold"
+)
+
+func settingValues(settings []store.Setting) map[string]string {
+	values := make(map[string]string, len(settings))
+	for _, setting := range settings {
+		values[setting.Key] = setting.Value
+	}
+	return values
+}
+
+func settingInt(values map[string]string, key string, fallback int) int {
+	value, ok := values[key]
+	if !ok {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		log.Printf("ignore invalid int setting %q=%q: %v", key, value, err)
+		return fallback
+	}
+	return parsed
 }

@@ -1,6 +1,6 @@
 # CodeGauge Status
 
-Last updated: 2026-06-12
+Last updated: 2026-06-15
 
 ## 已上线功能
 
@@ -42,6 +42,9 @@ Last updated: 2026-06-12
 - Android UI-R4: 已按高精度设计图完成 Provider 详情页，支持从 Dashboard 点击 Claude/Codex 额度卡进入详情、查看大号环形额度、5h/周窗口明细和最近事件，并支持返回首页。
 - Android UI-R5: 已按高精度设计图完成配对流程视觉重构，包含发现中骨架、发现设备列表、手动 IP:Port 输入、配对码面板和深色错误态，保留现有 NSD、手动配对和加密 token 流程。
 - Android UI-R6: 已按高精度设计图完成 Glance 桌面小组件视觉重构，支持宽版双 Provider、紧凑单 Provider、百分比/未知态、更新时间和未连接态。
+- 设置运行时生效: Companion 已按 DB 中 `collect_interval_seconds` 动态调整 Collector 采集间隔，并在设置保存后通过变更信号尽快唤醒下一轮采集。
+- 设置运行时生效: WebSocket alert 已按 DB 中 warning/critical 阈值实时判断，不再只依赖启动配置。
+- 设置运行时生效: Android 前台监听服务已按 `/settings` 控制业务通知；总通知开关、任务完成通知和额度恢复通知均会在 stream 事件到达时读取最新设置后生效，前台常驻通知保留。
 
 ## 进行中 / 待处理项
 
@@ -102,6 +105,9 @@ Last updated: 2026-06-12
 - Android UI-R5: adb 真机复测通过，已安装 debug APK、清空 App 数据进入未配对状态、验证 NSD 发现设备、配对码输入、提交配对进入 Dashboard、手动输入展开态；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` / `CodeGaugePairing` 异常日志。
 - Android UI-R6: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过。
 - Android UI-R6: adb 真机复测通过，已安装 debug APK、打开 App 触发小组件自然刷新、截图检查桌面宽版小组件；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION` 崩溃。
+- 设置运行时生效: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过，覆盖动态采集间隔、DB 阈值读取、设置变更信号和上一条 quota 使用率未知时不重复 alert。
+- 设置运行时生效: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过，覆盖通知策略开关过滤。
+- 设置运行时生效: adb 真机复测通过，安装 debug APK 后验证关闭任务完成通知时 `Stop` hook 不产生“任务已完成”通知；关闭总通知时 `Notification` hook 不产生业务通知且保留前台常驻通知；调低阈值后 Codex weekly 可触发新的额度预警；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
 
 ## 已知问题和技术债务
 
@@ -122,7 +128,8 @@ Last updated: 2026-06-12
 - T7/T9 mDNS 和 Android NSD 依赖局域网、系统 Bonjour/mDNS 环境和路由器组播支持；已通过 `dns-sd` 和手机 App 手动验收，后续仍需保留手动回归。
 - T8 未自动写入真实 `~/.claude/settings.json`；需要用户手动运行 `hooks/install-hooks.sh` 完成安装。
 - T8 根据 Claude Code 当前 hooks 限制，`SessionStart` 使用 `command` hook 通过 `curl --data-binary @-` 转发到本地 HTTP endpoint；`Notification` 和 `Stop` 使用 HTTP hook。
-- `/settings` 当前负责持久化偏好；Collector 采集间隔、stream alert 阈值和 Android 通知开关仍需后续接入运行时读取/热更新。
+- Android 通知策略会在业务 stream 事件到达时读取 `/settings`；如果读取失败，为避免违反用户关闭通知的设置，业务通知会 fail-closed，不影响前台常驻通知。
+- Companion alert 判断会忽略“上一条使用率未知”的 quota window，避免 `ccusage` 粗略窗口与 endpoint 精确窗口交替写入时重复触发预警。
 - T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
 - Android Widget 受 Glance/RemoteViews 能力限制，不能复用 Compose Canvas 环形仪表；UI-R6 采用深色卡片、大百分比和双层进度条近似设计稿环形状态。
 - T14 当前只对 Codex 接入稳定的本地 app-server 精确源；Claude Code 目前没有同等级稳定的本地 usage/rate-limit 协议，仍使用 `ccusage` 主路径，避免硬编码私有接口。
@@ -159,6 +166,8 @@ Last updated: 2026-06-12
 - 设置页前置 REST API 复用现有 Bearer 鉴权；设备列表响应只返回设备元数据，不返回 `device_pairings.token`。
 - 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
 - Android 设置页沿用现有 OkHttp + `org.json` 网络层，不额外引入 serialization/Ktor；保存时 PATCH 当前完整设置，减少字段级脏状态复杂度。
+- Companion 设置热更新通过 `NotifyingStore.SetSetting` 发出轻量变更信号；Collector 在信号到达时提前唤醒并重新读取 DB 中的采集间隔。
+- Android 业务通知不缓存长期 settings；每条可通知 stream 事件到达时读取最新 `/settings` 并按 `NotificationPolicy` 过滤，读取失败时抑制业务通知，保证总开关关闭优先。
 - Android UI 第一轮对齐以 `CodeGauge-完整方案.md` 和真机截图为依据；Claude 设计分享页当前无法被自动化读取，后续如提供设计导出或完整截图，可继续做像素级对齐。
 - 高精度 UI 设计图来自 `/Users/xiexiansheng/Downloads/document/CodeGauge____.pptx`，其中包含 25 张 1600×3000 手机界面图；UI-R1/R2 已落地 Dashboard，UI-R3 已落地 Activity 和 Settings，UI-R4 已落地 Provider 详情页，UI-R5 已落地 Pairing，UI-R6 已落地 Widget。
 - Android 高精度 UI 的暗色设计 token、卡片、状态点、胶囊和环形仪表已抽到 `android/app/src/main/java/com/codegauge/ui/design/CodeGaugeDesign.kt`，避免 Dashboard / Activity / Settings 重复维护视觉基础组件。

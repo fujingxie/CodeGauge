@@ -41,7 +41,7 @@ go run ./cmd/codegauge
 
 ## 待办与已知问题
 
-1. **Android 高精度 UI**：Pairing、Dashboard、Provider 详情、Activity、Settings 和 Widget 首轮高精度还原已覆盖；后续以运行时设置生效、打包发布和安全硬化为主
+1. **Android 高精度 UI**：Pairing、Dashboard、Provider 详情、Activity、Settings 和 Widget 首轮高精度还原已覆盖；设置已接入运行时生效，后续以打包发布和安全硬化为主
 2. **集成测试覆盖**：部分模块（如 `collector_integration_test.go`）的集成测试可能需要完善
 3. **文档完善**：`docs/implementation-notes.md` 包含实施笔记，但 README 仍为功能摘要
 

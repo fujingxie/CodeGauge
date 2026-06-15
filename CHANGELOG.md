@@ -268,3 +268,15 @@
 - Kept the existing WorkManager refresh, stream-triggered refresh, and click-to-open behavior.
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb after reinstalling: opened the App to trigger natural widget refresh, checked the home-screen widget screenshot, and confirmed no `AndroidRuntime` / `FATAL EXCEPTION` crashes in `logcat`.
+
+## 2026-06-15 - 设置运行时生效
+
+- Made Companion Collector read `collect_interval_seconds` from DB settings at runtime and wake early when settings change.
+- Made stream quota alerts read warning/critical thresholds from DB settings instead of only using startup config.
+- Added a settings change signal on `NotifyingStore.SetSetting` and quota alert logging for operational visibility.
+- Prevented repeated quota alerts when the previous quota window has unknown usage, such as `ccusage` and endpoint windows alternating.
+- Added Android `NotificationPolicy` so total notifications, task-done notifications, and quota-reset notifications control business notifications while keeping the foreground listener notification.
+- Changed Android listener notification handling to read latest `/settings` for each notifiable stream event and suppress business notifications if settings cannot be read.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
+- Verified on the connected phone with adb: task-done off suppresses `Stop` notifications, total notifications off suppresses business notifications while keeping the foreground service notification, lowered threshold triggers Codex weekly warning, and `logcat` shows no `AndroidRuntime` / `FATAL EXCEPTION`.

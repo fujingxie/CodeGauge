@@ -7,6 +7,7 @@ import com.codegauge.dashboard.formatProviderName
 
 enum class NotificationKind {
     Alert,
+    QuotaReset,
     Waiting,
     Done,
 }
@@ -35,7 +36,7 @@ object NotificationMapper {
         val severity = alert.severity.ifBlank { "warning" }
         if (severity == "reset") {
             return NotificationSpec(
-                kind = NotificationKind.Alert,
+                kind = NotificationKind.QuotaReset,
                 title = "$provider 额度已恢复",
                 body = "$window 使用率已回落到 ${alert.usagePercent}%。",
                 stableKey = "alert:${alert.quotaEventKey.ifBlank { "${alert.providerId}:${alert.windowType}:reset" }}",
