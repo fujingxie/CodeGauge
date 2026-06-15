@@ -8,6 +8,27 @@ Local Go companion for CodeGauge.
 go run ./cmd/codegauge
 ```
 
+For day-to-day macOS use, install the Companion as a user LaunchAgent from the
+repository root:
+
+```bash
+scripts/install-macos.sh
+```
+
+The installer builds `~/.codegauge/bin/codegauge`, writes
+`~/.codegauge/codegauge.env`, creates
+`~/Library/LaunchAgents/com.codegauge.companion.plist`, and installs Claude
+hooks unless `--no-hooks` is passed.
+
+Manage the installed service with:
+
+```bash
+~/.codegauge/bin/codegaugectl status
+~/.codegauge/bin/codegaugectl logs
+~/.codegauge/bin/codegaugectl pair-code
+~/.codegauge/bin/codegaugectl restart
+```
+
 Defaults:
 
 - `CODEGAUGE_HOST=0.0.0.0`
@@ -18,6 +39,8 @@ Defaults:
 - `CODEGAUGE_CCUSAGE_PATH=ccusage`
 - `CODEGAUGE_DB_PATH=<user config dir>/CodeGauge/codegauge.db`
 - `CODEGAUGE_PAIR_CODE=<generated at startup>`
+- `CODEGAUGE_PAIR_CODE_TTL_SECONDS=600`
+- `CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS=5`
 - `CODEGAUGE_SERVER_NAME=CodeGauge Companion`
 
 ## Verify
@@ -92,5 +115,3 @@ TOKEN=$(node -e 'let s=""; process.stdin.on("data", d => s += d); process.stdin.
 curl -sS http://127.0.0.1:18766/api/v1/status -H "Authorization: Bearer $TOKEN"
 curl -sS http://127.0.0.1:18766/api/v1/quota -H "Authorization: Bearer $TOKEN"
 ```
-
-Next task: T5 - Claude HookReceiver and process Watcher.

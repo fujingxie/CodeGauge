@@ -10,7 +10,8 @@ The implementation follows [CodeGauge-完整方案.md](CodeGauge-完整方案.md
 CodeGauge/
   android/app/    Android app
   companion/      Go companion
-  hooks/          Claude hooks snippets and installer, pending T8
+  hooks/          Claude hooks snippets and installer
+  scripts/        macOS install and service management scripts
   docs/           Implementation notes and plans
 ```
 
@@ -24,4 +25,21 @@ CodeGauge/
 cd companion
 go test ./...
 go run ./cmd/codegauge
+```
+
+## macOS Install
+
+Install the Companion as a user LaunchAgent and merge Claude hooks:
+
+```bash
+scripts/install-macos.sh
+```
+
+Useful service commands after install:
+
+```bash
+~/.codegauge/bin/codegaugectl status
+~/.codegauge/bin/codegaugectl logs
+~/.codegauge/bin/codegaugectl pair-code
+~/.codegauge/bin/codegaugectl restart
 ```

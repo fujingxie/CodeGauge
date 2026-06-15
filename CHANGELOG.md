@@ -290,3 +290,12 @@
 - Kept Claude hook loopback protection and covered pairing security behavior in server/store/config tests.
 - Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
 - Verified with a temporary Companion smoke test: `/pair` token can access `/status`, SQLite stores only `sha256:` values, and wrong pair-code attempts return 429 after the limit.
+
+## 2026-06-15 - Companion macOS 产品化安装 T16
+
+- Added `scripts/install-macos.sh` to build Companion, install it under `~/.codegauge`, write a shell env config, generate a user LaunchAgent plist, and optionally install Claude hooks.
+- Added `scripts/codegaugectl.sh` for day-to-day service management: start, stop, restart, status, health, logs, pair-code, and uninstall.
+- Added `scripts/lib/macos-install.sh` and `scripts/macos-install.test.sh` to cover env rendering, launchd plist XML escaping, runner generation, and control-script help.
+- Documented the macOS install and service commands in `README.md` and `companion/README.md`.
+- Verified script syntax checks and the macOS install script tests.
+- Verified a temp-dir install smoke with `--no-start --no-hooks` and `plutil -lint` on the generated plist.
