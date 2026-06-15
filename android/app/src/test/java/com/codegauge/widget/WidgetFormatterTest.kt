@@ -60,7 +60,7 @@ class WidgetFormatterTest {
     }
 
     @Test
-    fun prefersCodexWeeklyPrecisePercent() {
+    fun prefersCodexFiveHourWindow() {
         val state = WidgetFormatter.fromSnapshot(
             snapshot = DashboardSnapshot(
                 providers = listOf(
@@ -98,11 +98,11 @@ class WidgetFormatterTest {
         )
 
         val codex = state.providers.single()
-        assertEquals(47, codex.percentLeft)
-        assertEquals("47", codex.percentText)
-        assertEquals("周", codex.windowLabel)
-        assertEquals("已用 291.5M", codex.usageText)
-        assertEquals("5d 17h 重置", codex.resetText)
+        assertEquals(86, codex.percentLeft)
+        assertEquals("86", codex.percentText)
+        assertEquals("5h", codex.windowLabel)
+        assertEquals("数据不可用", codex.usageText)
+        assertEquals("12h 31m 后满血", codex.resetText)
     }
 
     @Test

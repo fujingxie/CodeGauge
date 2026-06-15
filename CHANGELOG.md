@@ -330,3 +330,11 @@
 - Added `scripts/build-android-release.sh` to check signing setup, run unit tests, build release, and print the APK path.
 - Added `docs/android-release.md` with keystore generation, release build, install, and verification steps.
 - Verified the release pipeline with a temporary throwaway keystore and `apksigner verify`; removed the temporary APK and signing files afterward.
+
+## 2026-06-15 - Android Widget 主额度与启动图标
+
+- Changed the Glance desktop widget to prefer the 5H quota window by default and fall back to weekly only when 5H data is missing.
+- Updated widget formatter tests so Codex no longer prefers the weekly window in the widget.
+- Replaced the default Android template launcher icon with CodeGauge adaptive icon resources and added a monochrome icon for themed launchers.
+- Verified `./gradlew :android:app:testDebugUnitTest` and `./gradlew :android:app:assembleDebug`.
+- Installed the debug APK on the connected phone, checked APK badging for the adaptive icon, launched the App, and found no `AndroidRuntime` / `FATAL EXCEPTION` logs.

@@ -52,6 +52,8 @@ Last updated: 2026-06-15
 - T16 修复: macOS 安装器生成的 `codegauge.env` 已写入服务 `PATH`，包含 `ccusage` 所在目录、Homebrew 常用目录和系统目录，避免 launchd 环境下 npm shebang 找不到 `node`。
 - Dashboard 偏好: 首页额度卡默认优先展示 5H 窗口；Settings 已新增“首页主额度”分段设置，可在 5H 和周额度之间切换，设置保存到 Companion `/settings`。
 - T17: Android release 打包流程已接入本地 `keystore.properties` 签名配置，版本号为 `versionCode=1`、`versionName=0.1.0`，并新增 `scripts/build-android-release.sh` 与 `docs/android-release.md`。
+- Android Widget 修正: 桌面小组件主额度已改为默认优先展示 5H 窗口，缺失时再回退到周额度。
+- Android 图标: 已替换默认 Android 模板启动图标，新增 CodeGauge 自定义 adaptive launcher icon 和 monochrome 图标资源。
 
 ## 进行中 / 待处理项
 
@@ -130,6 +132,7 @@ Last updated: 2026-06-15
 - T17: `bash -n scripts/build-android-release.sh ...` 通过；无 `keystore.properties` 时脚本会输出 keytool/setup 指引并退出。
 - T17: `./gradlew :android:app:testDebugUnitTest` 与 `./gradlew :android:app:assembleDebug` 通过。
 - T17: 使用临时 throwaway keystore 验证 `scripts/build-android-release.sh` 完整链路通过，生成并签名 `app-release.apk`；`apksigner verify --print-certs` 通过后已删除临时 APK 和临时密钥配置，避免误用测试签名包。
+- Android Widget/Icon 修正: `./gradlew :android:app:testDebugUnitTest` 和 `./gradlew :android:app:assembleDebug` 通过；`aapt dump badging` 确认 APK 入口图标指向 adaptive icon；真机安装 debug APK 并启动 App 后，`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
 
 ## 已知问题和技术债务
 

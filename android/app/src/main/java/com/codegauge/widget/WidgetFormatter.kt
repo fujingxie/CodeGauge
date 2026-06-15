@@ -46,7 +46,7 @@ object WidgetFormatter {
             .map { provider ->
                 val fiveHour = provider.window(WindowTypes.FiveHours)
                 val weekly = provider.window(WindowTypes.Weekly)
-                val mainWindow = provider.mainWindow(fiveHour, weekly)
+                val mainWindow = fiveHour ?: weekly
                 WidgetProviderLine(
                     id = provider.id,
                     name = provider.name.ifBlank { provider.id },
@@ -66,16 +66,6 @@ object WidgetFormatter {
             providers = providers,
             updatedAt = now,
         )
-    }
-
-    private fun ProviderStatus.mainWindow(
-        fiveHour: QuotaWindowStatus?,
-        weekly: QuotaWindowStatus?,
-    ): QuotaWindowStatus? {
-        return when (id.lowercase(Locale.US)) {
-            "codex" -> weekly?.takeIf { it.percentLeft != null } ?: fiveHour ?: weekly
-            else -> fiveHour ?: weekly
-        }
     }
 
     private fun String.windowLabel(): String {
