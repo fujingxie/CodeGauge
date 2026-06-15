@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -138,7 +139,9 @@ internal fun QuotaRingGauge(
     accent: Color,
     modifier: Modifier = Modifier,
     gaugeSize: Dp = 126.dp,
-    valueFontSize: TextUnit = 36.sp,
+    valueFontSize: TextUnit = 30.sp,
+    percentFontSize: TextUnit = 11.sp,
+    labelFontSize: TextUnit = 11.sp,
 ) {
     Box(
         modifier = modifier.size(gaugeSize),
@@ -174,22 +177,26 @@ internal fun QuotaRingGauge(
                     text = percentLeft?.coerceIn(0, 100)?.toString() ?: "-",
                     color = percentLeft?.let { if (it <= 25) GaugeWarning else DashboardText } ?: DashboardMuted,
                     fontSize = valueFontSize,
+                    lineHeight = valueFontSize,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                 )
                 Text(
-                    modifier = Modifier.padding(bottom = 7.dp, start = 3.dp),
+                    modifier = Modifier.padding(bottom = 5.dp, start = 2.dp),
                     text = if (percentLeft == null) "" else "%",
                     color = DashboardText.copy(alpha = 0.90f),
-                    fontSize = 13.sp,
+                    fontSize = percentFontSize,
                     fontWeight = FontWeight.Bold,
                 )
             }
             Text(
                 text = if (percentLeft == null) "数据不可用" else "$windowLabel · 剩余",
                 color = DashboardMuted,
-                style = MaterialTheme.typography.bodySmall,
+                fontSize = labelFontSize,
+                lineHeight = 13.sp,
+                textAlign = TextAlign.Center,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
             )
         }
     }

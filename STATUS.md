@@ -124,6 +124,8 @@ Last updated: 2026-06-15
 - Dashboard 偏好: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖 Android settings JSON 解析/patch 和 Dashboard 主窗口选择逻辑。
 - Dashboard 偏好: `./gradlew :android:app:assembleDebug` 通过。
 - Dashboard 偏好: 本机 Companion 已通过 `scripts/install-macos.sh --no-hooks` 更新并重启；真机安装 debug APK 后，UI dump 确认 Dashboard 主卡显示 `5H · 剩余`，Settings 可见“首页主额度 / 5H / 周”，`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
+- Dashboard/Activity UI 修正: 已降低环形仪表中心数字、百分号和标签字号，避免主额度数字与仪表环重叠；Activity 和首页当前会话中的空项目会话改为显示“后台进程 / 进程检测 · 暂无项目路径”。
+- Dashboard/Activity UI 修正: `./gradlew :android:app:testDebugUnitTest` 和 `./gradlew :android:app:assembleDebug` 串行执行通过；真机安装 debug APK 后确认 Dashboard `5H · 剩余` 显示正常，Activity 不再出现“未知项目”文案，`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
 
 ## 已知问题和技术债务
 

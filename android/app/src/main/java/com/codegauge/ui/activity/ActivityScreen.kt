@@ -50,6 +50,7 @@ import com.codegauge.activity.ActivityStreamMessage
 import com.codegauge.activity.formatEventAge
 import com.codegauge.activity.formatEventDetail
 import com.codegauge.activity.formatEventTitle
+import com.codegauge.activity.formatSessionDetail
 import com.codegauge.activity.formatSessionTitle
 import com.codegauge.dashboard.DashboardRepository
 import com.codegauge.dashboard.SessionStatus
@@ -324,7 +325,7 @@ private fun SessionCard(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = session.projectPath.ifBlank { "~/未知项目" },
+                    text = formatSessionDetail(session),
                     style = MaterialTheme.typography.bodyMedium,
                     color = DashboardMuted,
                     maxLines = 1,

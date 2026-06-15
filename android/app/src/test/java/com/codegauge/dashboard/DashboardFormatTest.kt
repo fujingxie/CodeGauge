@@ -34,6 +34,22 @@ class DashboardFormatTest {
     }
 
     @Test
+    fun sessionSummaryLabelsBlankProjectAsBackgroundProcess() {
+        val summary = formatSessionSummary(
+            listOf(
+                SessionStatus(
+                    providerId = "codex",
+                    projectPath = "",
+                    state = "running",
+                    lastActivityAt = Instant.EPOCH,
+                ),
+            ),
+        )
+
+        assertEquals("Codex 正在运行 · 后台进程", summary)
+    }
+
+    @Test
     fun primaryWindowDefaultsToFiveHours() {
         val provider = providerWithWindows()
 

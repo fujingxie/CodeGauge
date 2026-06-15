@@ -313,3 +313,11 @@
 - Changed Android Dashboard quota cards and Provider detail header gauge to prefer the configured primary window, defaulting to 5H instead of weekly.
 - Added a Settings “首页主额度” segmented control so the user can switch between 5H and weekly display.
 - Added Android parser/model tests for the new setting and Dashboard primary-window selection tests.
+
+## 2026-06-15 - Dashboard / Activity UI 修正
+
+- Reduced Dashboard quota-ring center value, percent symbol, and label typography to prevent the number from overlapping the ring.
+- Reduced Provider detail ring value typography for the same fit issue.
+- Renamed blank-path sessions from “未知项目” to provider-specific “后台进程” and showed “进程检测 · 暂无项目路径” as the detail text.
+- Added Android tests for blank-project session formatting and Dashboard current-session summary wording.
+- Verified `./gradlew :android:app:testDebugUnitTest` and `./gradlew :android:app:assembleDebug`, then installed the debug APK on the connected phone and checked Dashboard/Activity with no crash logs.

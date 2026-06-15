@@ -49,7 +49,7 @@ fun formatSessionSummary(sessions: List<SessionStatus>): String {
     val active = sessions.firstOrNull { it.state == "running" || it.state == "waiting" }
         ?: return "当前没有运行中的会话"
     val provider = formatProviderName(active.providerId)
-    val project = active.projectPath.substringAfterLast('/').ifBlank { "未知项目" }
+    val project = active.projectPath.substringAfterLast('/').ifBlank { "后台进程" }
     val state = when (active.state) {
         "running" -> "正在运行"
         "waiting" -> "等待确认"

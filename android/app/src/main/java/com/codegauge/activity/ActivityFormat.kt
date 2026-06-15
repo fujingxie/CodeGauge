@@ -7,7 +7,17 @@ import java.time.Duration
 import java.time.Instant
 
 fun formatSessionTitle(session: SessionStatus): String {
-    return session.projectPath.substringAfterLast('/').ifBlank { "未知项目" }
+    val project = session.projectPath.substringAfterLast('/').ifBlank { "" }
+    if (project.isNotBlank()) {
+        return project
+    }
+    val provider = formatProviderName(session.providerId).takeIf { it != "未知服务" }
+    return listOfNotNull(provider, "后台进程")
+        .joinToString(" ")
+}
+
+fun formatSessionDetail(session: SessionStatus): String {
+    return session.projectPath.ifBlank { "进程检测 · 暂无项目路径" }
 }
 
 fun formatSessionState(state: String): String {

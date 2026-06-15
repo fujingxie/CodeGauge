@@ -553,7 +553,9 @@ private fun ProviderDetailScreen(
             windowLabel = mainWindow?.windowType.windowShortLabel(),
             accent = visual.accent,
             gaugeSize = 224.dp,
-            valueFontSize = 58.sp,
+            valueFontSize = 48.sp,
+            percentFontSize = 13.sp,
+            labelFontSize = 13.sp,
         )
 
         WindowTimerPill(
