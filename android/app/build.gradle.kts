@@ -1,6 +1,15 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+val releaseKeystorePropertiesFile = rootProject.file("keystore.properties")
+val releaseKeystoreProperties = Properties()
+val hasReleaseKeystore = releaseKeystorePropertiesFile.isFile
+if (hasReleaseKeystore) {
+    releaseKeystorePropertiesFile.inputStream().use(releaseKeystoreProperties::load)
 }
 
 android {
@@ -12,14 +21,33 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                val storeFilePath = releaseKeystoreProperties["storeFile"] as? String
+                    ?: throw GradleException("keystore.properties missing storeFile")
+                storeFile = rootProject.file(storeFilePath)
+                storePassword = releaseKeystoreProperties["storePassword"] as? String
+                    ?: throw GradleException("keystore.properties missing storePassword")
+                keyAlias = releaseKeystoreProperties["keyAlias"] as? String
+                    ?: throw GradleException("keystore.properties missing keyAlias")
+                keyPassword = releaseKeystoreProperties["keyPassword"] as? String
+                    ?: throw GradleException("keystore.properties missing keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

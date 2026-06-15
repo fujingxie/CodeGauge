@@ -51,6 +51,7 @@ Last updated: 2026-06-15
 - T16: 已新增 `codegaugectl` 服务管理命令，支持 `start`、`stop`、`restart`、`status`、`health`、`logs`、`pair-code` 和 `uninstall`。
 - T16 修复: macOS 安装器生成的 `codegauge.env` 已写入服务 `PATH`，包含 `ccusage` 所在目录、Homebrew 常用目录和系统目录，避免 launchd 环境下 npm shebang 找不到 `node`。
 - Dashboard 偏好: 首页额度卡默认优先展示 5H 窗口；Settings 已新增“首页主额度”分段设置，可在 5H 和周额度之间切换，设置保存到 Companion `/settings`。
+- T17: Android release 打包流程已接入本地 `keystore.properties` 签名配置，版本号为 `versionCode=1`、`versionName=0.1.0`，并新增 `scripts/build-android-release.sh` 与 `docs/android-release.md`。
 
 ## 进行中 / 待处理项
 
@@ -126,6 +127,9 @@ Last updated: 2026-06-15
 - Dashboard 偏好: 本机 Companion 已通过 `scripts/install-macos.sh --no-hooks` 更新并重启；真机安装 debug APK 后，UI dump 确认 Dashboard 主卡显示 `5H · 剩余`，Settings 可见“首页主额度 / 5H / 周”，`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
 - Dashboard/Activity UI 修正: 已降低环形仪表中心数字、百分号和标签字号，避免主额度数字与仪表环重叠；Activity 和首页当前会话中的空项目会话改为显示“后台进程 / 进程检测 · 暂无项目路径”。
 - Dashboard/Activity UI 修正: `./gradlew :android:app:testDebugUnitTest` 和 `./gradlew :android:app:assembleDebug` 串行执行通过；真机安装 debug APK 后确认 Dashboard `5H · 剩余` 显示正常，Activity 不再出现“未知项目”文案，`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
+- T17: `bash -n scripts/build-android-release.sh ...` 通过；无 `keystore.properties` 时脚本会输出 keytool/setup 指引并退出。
+- T17: `./gradlew :android:app:testDebugUnitTest` 与 `./gradlew :android:app:assembleDebug` 通过。
+- T17: 使用临时 throwaway keystore 验证 `scripts/build-android-release.sh` 完整链路通过，生成并签名 `app-release.apk`；`apksigner verify --print-certs` 通过后已删除临时 APK 和临时密钥配置，避免误用测试签名包。
 
 ## 已知问题和技术债务
 
@@ -153,6 +157,7 @@ Last updated: 2026-06-15
 - T13 小组件使用当前 `/status` 数据；如果 `ccusage` 未提供剩余百分比或 reset time，仍显示未知，不编造额度。
 - Android Widget 受 Glance/RemoteViews 能力限制，不能复用 Compose Canvas 环形仪表；UI-R6 采用深色卡片、大百分比和双层进度条近似设计稿环形状态。
 - T14 当前只对 Codex 接入稳定的本地 app-server 精确源；Claude Code 目前没有同等级稳定的本地 usage/rate-limit 协议，仍使用 `ccusage` 主路径，避免硬编码私有接口。
+- T17 正式 release APK 仍需要用户在本机手动生成长期使用的 `release/codegauge-release.jks` 并填写 `keystore.properties`；仓库只提供模板和流程，不保存密钥。
 
 ## 关键架构决策及原因
 

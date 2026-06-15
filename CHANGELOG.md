@@ -321,3 +321,12 @@
 - Renamed blank-path sessions from “未知项目” to provider-specific “后台进程” and showed “进程检测 · 暂无项目路径” as the detail text.
 - Added Android tests for blank-project session formatting and Dashboard current-session summary wording.
 - Verified `./gradlew :android:app:testDebugUnitTest` and `./gradlew :android:app:assembleDebug`, then installed the debug APK on the connected phone and checked Dashboard/Activity with no crash logs.
+
+## 2026-06-15 - Android release 打包 T17
+
+- Added local-only Android release signing support through root `keystore.properties`.
+- Changed Android `versionName` to `0.1.0` while keeping `versionCode=1`.
+- Added `keystore.properties.example` and ignored `keystore.properties`, `*.jks`, `*.keystore`, and Android build outputs.
+- Added `scripts/build-android-release.sh` to check signing setup, run unit tests, build release, and print the APK path.
+- Added `docs/android-release.md` with keystore generation, release build, install, and verification steps.
+- Verified the release pipeline with a temporary throwaway keystore and `apksigner verify`; removed the temporary APK and signing files afterward.

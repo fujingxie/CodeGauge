@@ -21,6 +21,16 @@ CodeGauge/
 ./gradlew :android:app:assembleDebug
 ```
 
+Build a signed Android release APK after creating local-only
+`keystore.properties`:
+
+```bash
+scripts/build-android-release.sh
+```
+
+See [docs/android-release.md](docs/android-release.md) for keystore setup and
+the release verification checklist.
+
 ```bash
 cd companion
 go test ./...
