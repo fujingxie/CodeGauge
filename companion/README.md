@@ -20,6 +20,11 @@ The installer builds `~/.codegauge/bin/codegauge`, writes
 `~/Library/LaunchAgents/com.codegauge.companion.plist`, and installs Claude
 hooks unless `--no-hooks` is passed.
 
+The generated env file also exports a service `PATH` that includes the
+`ccusage` directory, Homebrew directories, and system directories. This is
+required for npm-installed tools whose shebang uses `/usr/bin/env node` under
+launchd.
+
 Manage the installed service with:
 
 ```bash

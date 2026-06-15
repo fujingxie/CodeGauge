@@ -299,3 +299,10 @@
 - Documented the macOS install and service commands in `README.md` and `companion/README.md`.
 - Verified script syntax checks and the macOS install script tests.
 - Verified a temp-dir install smoke with `--no-start --no-hooks` and `plutil -lint` on the generated plist.
+
+## 2026-06-15 - Companion macOS launchd PATH 修复
+
+- Added generated service `PATH` support to `scripts/install-macos.sh`, including the `ccusage` binary directory, Codex binary directory, Homebrew directories, and system directories.
+- Covered service PATH generation and duplicate removal in `scripts/macos-install.test.sh`.
+- Fixed launchd installs where npm-installed `ccusage` failed with `/usr/bin/env node: No such file or directory`.
+- Reinstalled the local Companion with `--no-hooks`; verified `/status` now returns Claude 5h/weekly ccusage windows and Codex 5h/weekly endpoint windows.

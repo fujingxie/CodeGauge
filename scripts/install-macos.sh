@@ -123,11 +123,14 @@ write_config() {
   local db_path="${CODEGAUGE_DB_PATH:-"$VAR_DIR/codegauge.db"}"
   local ccusage_path
   local codex_path
+  local service_path
 
   ccusage_path="$(cg_resolve_command "${CODEGAUGE_CCUSAGE_PATH:-}" ccusage)"
   codex_path="$(resolve_codex_path)"
+  service_path="$(cg_service_path "${CODEGAUGE_SERVICE_PATH:-}" "$ccusage_path" "$codex_path")"
 
   cg_write_env_file "$ENV_FILE" \
+    "PATH=$service_path" \
     "CODEGAUGE_HOST=$host" \
     "CODEGAUGE_PORT=$port" \
     "CODEGAUGE_DB_PATH=$db_path" \
@@ -197,6 +200,7 @@ Environment overrides:
   CODEGAUGE_CODEX_PATH
   CODEGAUGE_TRAY_ENABLED
   CODEGAUGE_GO_BIN
+  CODEGAUGE_SERVICE_PATH
 USAGE
 }
 

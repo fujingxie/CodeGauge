@@ -45,6 +45,7 @@ scripts/install-macos.sh
 ```
 
 - Go 伴侣服务需保持运行状态
+- macOS 安装器会在 `~/.codegauge/codegauge.env` 写入服务 `PATH`，确保 launchd 后台环境能找到 nvm/npm 安装的 `node` 与 `ccusage`
 - Claude hooks 已提供配置片段和安装脚本；macOS 安装器默认会合并 hooks，可用 `--no-hooks` 跳过
 - 数据库迁移需确保 `migrations.sql` 按顺序执行
 

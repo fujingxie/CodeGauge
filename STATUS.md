@@ -49,6 +49,7 @@ Last updated: 2026-06-15
 - T15: Companion 已实现配对码 TTL 和错误次数限制，默认配对码 10 分钟有效、连续 5 次错误后拒绝继续配对；可通过 `CODEGAUGE_PAIR_CODE_TTL_SECONDS` 和 `CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS` 调整。
 - T16: 已新增 macOS 产品化安装脚本 `scripts/install-macos.sh`，可构建 Companion、写入 `~/.codegauge/codegauge.env`、生成 LaunchAgent plist、安装控制脚本并接入 Claude hooks。
 - T16: 已新增 `codegaugectl` 服务管理命令，支持 `start`、`stop`、`restart`、`status`、`health`、`logs`、`pair-code` 和 `uninstall`。
+- T16 修复: macOS 安装器生成的 `codegauge.env` 已写入服务 `PATH`，包含 `ccusage` 所在目录、Homebrew 常用目录和系统目录，避免 launchd 环境下 npm shebang 找不到 `node`。
 
 ## 进行中 / 待处理项
 
@@ -117,6 +118,7 @@ Last updated: 2026-06-15
 - T16: `bash -n scripts/lib/macos-install.sh scripts/codegaugectl.sh scripts/install-macos.sh scripts/macos-install.test.sh` 通过。
 - T16: `bash scripts/macos-install.test.sh` 通过，覆盖 env 写入/读取、launchd plist XML 转义、runner source+exec 和控制脚本帮助。
 - T16: 临时目录安装 smoke 通过：安装到 `/private/tmp/codegauge-t16-install`、plist 写到 `/private/tmp/codegauge-t16-launchagents`，`plutil -lint` 校验通过，未启动 launchd、未写真实 Claude hooks。
+- T16 修复: 本机真实安装重跑 `scripts/install-macos.sh --no-hooks` 后，`~/.codegauge/codegauge.env` 包含 nvm Node 路径；`/status` 已恢复 Claude 5h/weekly 数据和 Codex 5h/weekly endpoint 精确窗口。
 
 ## 已知问题和技术债务
 

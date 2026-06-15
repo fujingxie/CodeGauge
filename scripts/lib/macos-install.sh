@@ -87,3 +87,61 @@ cg_resolve_command() {
   fi
   printf '%s' "$fallback"
 }
+
+cg_service_path() {
+  local configured="$1"
+  shift
+
+  if [[ -n "$configured" ]]; then
+    printf '%s' "$configured"
+    return
+  fi
+
+  local candidates=()
+  local tool_path
+  for tool_path in "$@"; do
+    if [[ "$tool_path" == */* ]]; then
+      candidates+=("$(dirname "$tool_path")")
+    fi
+  done
+
+  candidates+=(
+    "/opt/homebrew/bin"
+    "/usr/local/bin"
+    "/usr/bin"
+    "/bin"
+    "/usr/sbin"
+    "/sbin"
+  )
+
+  local current_path_parts=()
+  if [[ -n "${PATH:-}" ]]; then
+    IFS=":" read -r -a current_path_parts <<<"$PATH"
+    candidates+=("${current_path_parts[@]}")
+  fi
+
+  cg_join_unique_paths "${candidates[@]}"
+}
+
+cg_join_unique_paths() {
+  local result=""
+  local candidate
+
+  for candidate in "$@"; do
+    if [[ -z "$candidate" ]]; then
+      continue
+    fi
+    case ":$result:" in
+      *":$candidate:"*) ;;
+      *)
+        if [[ -z "$result" ]]; then
+          result="$candidate"
+        else
+          result="$result:$candidate"
+        fi
+        ;;
+    esac
+  done
+
+  printf '%s' "$result"
+}
