@@ -43,6 +43,7 @@ private fun defaultSettings(): AppSettings {
         quotaResetNotifications = true,
         taskDoneNotifications = true,
         collectIntervalSeconds = 60,
+        dashboardPrimaryWindow = "5h",
     )
 }
 

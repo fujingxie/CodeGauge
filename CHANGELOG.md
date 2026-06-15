@@ -306,3 +306,10 @@
 - Covered service PATH generation and duplicate removal in `scripts/macos-install.test.sh`.
 - Fixed launchd installs where npm-installed `ccusage` failed with `/usr/bin/env node: No such file or directory`.
 - Reinstalled the local Companion with `--no-hooks`; verified `/status` now returns Claude 5h/weekly ccusage windows and Codex 5h/weekly endpoint windows.
+
+## 2026-06-15 - Dashboard 主额度窗口偏好
+
+- Added `dashboard_primary_window` to Companion `/settings`, defaulting to `5h` and validating values as `5h` or `weekly`.
+- Changed Android Dashboard quota cards and Provider detail header gauge to prefer the configured primary window, defaulting to 5H instead of weekly.
+- Added a Settings “首页主额度” segmented control so the user can switch between 5H and weekly display.
+- Added Android parser/model tests for the new setting and Dashboard primary-window selection tests.

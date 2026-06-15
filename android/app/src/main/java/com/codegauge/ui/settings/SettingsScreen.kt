@@ -178,6 +178,12 @@ fun SettingsRoute(
                         draft = it
                     },
                 )
+                DashboardSection(
+                    settings = settings,
+                    onChange = {
+                        draft = it
+                    },
+                )
                 CollectionSection(
                     intervalSeconds = intervalSeconds ?: settings.collectIntervalSeconds,
                     onIntervalChange = { seconds ->
@@ -393,6 +399,77 @@ private fun ThresholdControlRow(
                 )
             },
         )
+    }
+}
+
+@Composable
+private fun DashboardSection(
+    settings: AppSettings,
+    onChange: (AppSettings) -> Unit,
+) {
+    SectionLabel("仪表盘")
+    DesignPanel(
+        contentPadding = 14.dp,
+        contentSpacing = 12.dp,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "首页主额度",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = DashboardText,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    modifier = Modifier.padding(top = 2.dp),
+                    text = "额度卡中心优先展示的窗口",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DashboardMuted,
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            SegmentedPrimaryWindow(
+                selectedWindow = settings.dashboardPrimaryWindow,
+                onChange = { window ->
+                    onChange(settings.copy(dashboardPrimaryWindow = window))
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentedPrimaryWindow(
+    selectedWindow: String,
+    onChange: (String) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = DashboardSurfaceRaised,
+        border = BorderStroke(1.dp, DashboardBorder),
+    ) {
+        Row(modifier = Modifier.padding(3.dp)) {
+            PrimaryWindowOption.entries.forEach { option ->
+                val selected = selectedWindow == option.value
+                Surface(
+                    modifier = Modifier.clickable { onChange(option.value) },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (selected) DashboardBackground else Color.Transparent,
+                ) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                        text = option.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (selected) DashboardText else DashboardMuted,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -679,6 +756,14 @@ private enum class IntervalOption(
     ThirtySeconds("30s", 30),
     OneMinute("1m", 60),
     FiveMinutes("5m", 300),
+}
+
+private enum class PrimaryWindowOption(
+    val label: String,
+    val value: String,
+) {
+    FiveHours("5H", "5h"),
+    Weekly("周", "weekly"),
 }
 
 private val TimeFormatter = DateTimeFormatter

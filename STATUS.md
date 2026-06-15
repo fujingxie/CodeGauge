@@ -50,6 +50,7 @@ Last updated: 2026-06-15
 - T16: 已新增 macOS 产品化安装脚本 `scripts/install-macos.sh`，可构建 Companion、写入 `~/.codegauge/codegauge.env`、生成 LaunchAgent plist、安装控制脚本并接入 Claude hooks。
 - T16: 已新增 `codegaugectl` 服务管理命令，支持 `start`、`stop`、`restart`、`status`、`health`、`logs`、`pair-code` 和 `uninstall`。
 - T16 修复: macOS 安装器生成的 `codegauge.env` 已写入服务 `PATH`，包含 `ccusage` 所在目录、Homebrew 常用目录和系统目录，避免 launchd 环境下 npm shebang 找不到 `node`。
+- Dashboard 偏好: 首页额度卡默认优先展示 5H 窗口；Settings 已新增“首页主额度”分段设置，可在 5H 和周额度之间切换，设置保存到 Companion `/settings`。
 
 ## 进行中 / 待处理项
 
@@ -119,6 +120,10 @@ Last updated: 2026-06-15
 - T16: `bash scripts/macos-install.test.sh` 通过，覆盖 env 写入/读取、launchd plist XML 转义、runner source+exec 和控制脚本帮助。
 - T16: 临时目录安装 smoke 通过：安装到 `/private/tmp/codegauge-t16-install`、plist 写到 `/private/tmp/codegauge-t16-launchagents`，`plutil -lint` 校验通过，未启动 launchd、未写真实 Claude hooks。
 - T16 修复: 本机真实安装重跑 `scripts/install-macos.sh --no-hooks` 后，`~/.codegauge/codegauge.env` 包含 nvm Node 路径；`/status` 已恢复 Claude 5h/weekly 数据和 Codex 5h/weekly endpoint 精确窗口。
+- Dashboard 偏好: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过，覆盖 settings 默认值、保存和非法主窗口拒绝。
+- Dashboard 偏好: `./gradlew :android:app:testDebugUnitTest` 通过，覆盖 Android settings JSON 解析/patch 和 Dashboard 主窗口选择逻辑。
+- Dashboard 偏好: `./gradlew :android:app:assembleDebug` 通过。
+- Dashboard 偏好: 本机 Companion 已通过 `scripts/install-macos.sh --no-hooks` 更新并重启；真机安装 debug APK 后，UI dump 确认 Dashboard 主卡显示 `5H · 剩余`，Settings 可见“首页主额度 / 5H / 周”，`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
 
 ## 已知问题和技术债务
 

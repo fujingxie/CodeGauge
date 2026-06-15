@@ -13,6 +13,10 @@ class SettingsRepository(
         )
     }
 
+    suspend fun loadSettings(pairing: PairingRecord): AppSettings {
+        return api.settings(pairing)
+    }
+
     suspend fun save(
         pairing: PairingRecord,
         settings: AppSettings,

@@ -236,6 +236,9 @@ func TestSettingsReadsDefaultsAndPersistsUpdates(t *testing.T) {
 	if defaults.Settings.CollectIntervalSeconds != 30 {
 		t.Fatalf("default collect interval = %d, want 30", defaults.Settings.CollectIntervalSeconds)
 	}
+	if defaults.Settings.DashboardPrimaryWindow != "5h" {
+		t.Fatalf("default dashboard primary window = %q, want 5h", defaults.Settings.DashboardPrimaryWindow)
+	}
 	if !defaults.Settings.NotificationsEnabled || !defaults.Settings.TaskDoneNotifications {
 		t.Fatalf("default notifications = %+v, want enabled", defaults.Settings)
 	}
@@ -248,7 +251,8 @@ func TestSettingsReadsDefaultsAndPersistsUpdates(t *testing.T) {
 				"warning_threshold":70,
 				"critical_threshold":92,
 				"notifications_enabled":false,
-				"collect_interval_seconds":45
+				"collect_interval_seconds":45,
+				"dashboard_primary_window":"weekly"
 			}
 		}`),
 	)
@@ -270,6 +274,9 @@ func TestSettingsReadsDefaultsAndPersistsUpdates(t *testing.T) {
 	if updated.Settings.CollectIntervalSeconds != 45 {
 		t.Fatalf("CollectIntervalSeconds = %d, want 45", updated.Settings.CollectIntervalSeconds)
 	}
+	if updated.Settings.DashboardPrimaryWindow != "weekly" {
+		t.Fatalf("DashboardPrimaryWindow = %q, want weekly", updated.Settings.DashboardPrimaryWindow)
+	}
 
 	setting, err := db.GetSetting("warning_threshold")
 	if err != nil {
@@ -277,6 +284,13 @@ func TestSettingsReadsDefaultsAndPersistsUpdates(t *testing.T) {
 	}
 	if setting.Value != "70" {
 		t.Fatalf("stored warning_threshold = %q, want 70", setting.Value)
+	}
+	setting, err = db.GetSetting("dashboard_primary_window")
+	if err != nil {
+		t.Fatalf("GetSetting dashboard_primary_window: %v", err)
+	}
+	if setting.Value != "weekly" {
+		t.Fatalf("stored dashboard_primary_window = %q, want weekly", setting.Value)
 	}
 }
 
@@ -299,6 +313,28 @@ func TestSettingsRejectsInvalidThresholds(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestSettingsRejectsInvalidDashboardPrimaryWindow(t *testing.T) {
+	db := openServerTestStore(t)
+	if err := db.UpsertDevicePairing(DevicePairing("phone-1", "Pixel", "token-test", testNow())); err != nil {
+		t.Fatalf("UpsertDevicePairing: %v", err)
+	}
+	router := newTestRouterWithStore(t, db)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/settings",
+		bytes.NewBufferString(`{"settings":{"dashboard_primary_window":"daily"}}`),
+	)
+	req.Header.Set("Authorization", "Bearer token-test")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
 	}
 }
 

@@ -20,7 +20,8 @@ class SettingsJsonParserTest {
                 "critical_threshold": 92,
                 "quota_reset_notifications": true,
                 "task_done_notifications": false,
-                "collect_interval_seconds": 45
+                "collect_interval_seconds": 45,
+                "dashboard_primary_window": "weekly"
               }
             }
             """.trimIndent(),
@@ -32,6 +33,7 @@ class SettingsJsonParserTest {
         assertTrue(settings.quotaResetNotifications)
         assertFalse(settings.taskDoneNotifications)
         assertEquals(45, settings.collectIntervalSeconds)
+        assertEquals("weekly", settings.dashboardPrimaryWindow)
 
         val devices = SettingsJsonParser.parseDevices(
             """
@@ -92,6 +94,7 @@ class SettingsJsonParserTest {
                 quotaResetNotifications = true,
                 taskDoneNotifications = false,
                 collectIntervalSeconds = 120,
+                dashboardPrimaryWindow = "5h",
             ),
         )
 
@@ -102,5 +105,21 @@ class SettingsJsonParserTest {
         assertTrue(settings.getBoolean("quota_reset_notifications"))
         assertFalse(settings.getBoolean("task_done_notifications"))
         assertEquals(120, settings.getInt("collect_interval_seconds"))
+        assertEquals("5h", settings.getString("dashboard_primary_window"))
+    }
+
+    @Test
+    fun defaultsInvalidDashboardPrimaryWindowToFiveHours() {
+        val settings = SettingsJsonParser.parseSettings(
+            """
+            {
+              "settings": {
+                "dashboard_primary_window": "daily"
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals("5h", settings.dashboardPrimaryWindow)
     }
 }

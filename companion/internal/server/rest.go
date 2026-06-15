@@ -100,12 +100,13 @@ type SettingsResponse struct {
 }
 
 type AppSettings struct {
-	NotificationsEnabled    bool `json:"notifications_enabled"`
-	WarningThreshold        int  `json:"warning_threshold"`
-	CriticalThreshold       int  `json:"critical_threshold"`
-	QuotaResetNotifications bool `json:"quota_reset_notifications"`
-	TaskDoneNotifications   bool `json:"task_done_notifications"`
-	CollectIntervalSeconds  int  `json:"collect_interval_seconds"`
+	NotificationsEnabled    bool   `json:"notifications_enabled"`
+	WarningThreshold        int    `json:"warning_threshold"`
+	CriticalThreshold       int    `json:"critical_threshold"`
+	QuotaResetNotifications bool   `json:"quota_reset_notifications"`
+	TaskDoneNotifications   bool   `json:"task_done_notifications"`
+	CollectIntervalSeconds  int    `json:"collect_interval_seconds"`
+	DashboardPrimaryWindow  string `json:"dashboard_primary_window"`
 }
 
 type SettingsPatchRequest struct {
@@ -113,12 +114,13 @@ type SettingsPatchRequest struct {
 }
 
 type SettingsPatch struct {
-	NotificationsEnabled    *bool `json:"notifications_enabled"`
-	WarningThreshold        *int  `json:"warning_threshold"`
-	CriticalThreshold       *int  `json:"critical_threshold"`
-	QuotaResetNotifications *bool `json:"quota_reset_notifications"`
-	TaskDoneNotifications   *bool `json:"task_done_notifications"`
-	CollectIntervalSeconds  *int  `json:"collect_interval_seconds"`
+	NotificationsEnabled    *bool   `json:"notifications_enabled"`
+	WarningThreshold        *int    `json:"warning_threshold"`
+	CriticalThreshold       *int    `json:"critical_threshold"`
+	QuotaResetNotifications *bool   `json:"quota_reset_notifications"`
+	TaskDoneNotifications   *bool   `json:"task_done_notifications"`
+	CollectIntervalSeconds  *int    `json:"collect_interval_seconds"`
+	DashboardPrimaryWindow  *string `json:"dashboard_primary_window"`
 }
 
 type DevicesResponse struct {
@@ -199,6 +201,7 @@ const (
 	settingQuotaResetNotifications = "quota_reset_notifications"
 	settingTaskDoneNotifications   = "task_done_notifications"
 	settingCollectIntervalSeconds  = "collect_interval_seconds"
+	settingDashboardPrimaryWindow  = "dashboard_primary_window"
 )
 
 func NewRouter(options Options) http.Handler {
@@ -651,6 +654,7 @@ func (r *Router) currentSettings() (AppSettings, error) {
 		QuotaResetNotifications: settingBool(values, settingQuotaResetNotifications, true),
 		TaskDoneNotifications:   settingBool(values, settingTaskDoneNotifications, true),
 		CollectIntervalSeconds:  settingInt(values, settingCollectIntervalSeconds, r.settingsDefaults.CollectIntervalSeconds),
+		DashboardPrimaryWindow:  settingDashboardPrimaryWindowValue(values),
 	}, nil
 }
 
@@ -685,6 +689,11 @@ func (r *Router) storeSettingsPatch(patch SettingsPatch) error {
 			return err
 		}
 	}
+	if patch.DashboardPrimaryWindow != nil {
+		if err := r.store.SetSetting(settingDashboardPrimaryWindow, *patch.DashboardPrimaryWindow); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -707,6 +716,9 @@ func applySettingsPatch(settings *AppSettings, patch SettingsPatch) {
 	if patch.CollectIntervalSeconds != nil {
 		settings.CollectIntervalSeconds = *patch.CollectIntervalSeconds
 	}
+	if patch.DashboardPrimaryWindow != nil {
+		settings.DashboardPrimaryWindow = *patch.DashboardPrimaryWindow
+	}
 }
 
 func validateSettings(settings AppSettings) error {
@@ -721,6 +733,9 @@ func validateSettings(settings AppSettings) error {
 	}
 	if settings.CollectIntervalSeconds <= 0 {
 		return fmt.Errorf("collect_interval_seconds must be positive")
+	}
+	if settings.DashboardPrimaryWindow != "5h" && settings.DashboardPrimaryWindow != "weekly" {
+		return fmt.Errorf("dashboard_primary_window must be 5h or weekly")
 	}
 	return nil
 }
@@ -849,6 +864,23 @@ func settingInt(values map[string]string, key string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func settingString(values map[string]string, key string, fallback string) string {
+	value, ok := values[key]
+	if !ok || value == "" {
+		return fallback
+	}
+	return value
+}
+
+func settingDashboardPrimaryWindowValue(values map[string]string) string {
+	value := settingString(values, settingDashboardPrimaryWindow, "5h")
+	if value != "5h" && value != "weekly" {
+		log.Printf("ignore invalid string setting %q=%q", settingDashboardPrimaryWindow, value)
+		return "5h"
+	}
+	return value
 }
 
 func settingsDefaults(defaults SettingsDefaults) SettingsDefaults {

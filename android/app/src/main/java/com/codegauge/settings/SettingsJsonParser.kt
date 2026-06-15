@@ -77,6 +77,9 @@ object SettingsJsonParser {
         update.collectIntervalSeconds?.let {
             settings.put("collect_interval_seconds", it)
         }
+        update.dashboardPrimaryWindow?.let {
+            settings.put("dashboard_primary_window", it)
+        }
         return JSONObject()
             .put("settings", settings)
             .toString()
@@ -90,8 +93,14 @@ object SettingsJsonParser {
             quotaResetNotifications = json.optBoolean("quota_reset_notifications", true),
             taskDoneNotifications = json.optBoolean("task_done_notifications", true),
             collectIntervalSeconds = json.optInt("collect_interval_seconds", 60),
+            dashboardPrimaryWindow = json.optString("dashboard_primary_window", DashboardPrimaryWindowFiveHours)
+                .takeIf { it == DashboardPrimaryWindowFiveHours || it == DashboardPrimaryWindowWeekly }
+                ?: DashboardPrimaryWindowFiveHours,
         )
     }
+
+    const val DashboardPrimaryWindowFiveHours = "5h"
+    const val DashboardPrimaryWindowWeekly = "weekly"
 }
 
 private fun JSONObject.optInstant(name: String): Instant? {

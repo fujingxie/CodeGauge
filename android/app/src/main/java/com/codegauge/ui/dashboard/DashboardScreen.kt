@@ -53,10 +53,13 @@ import com.codegauge.dashboard.ProviderStatus
 import com.codegauge.dashboard.QuotaWindowStatus
 import com.codegauge.dashboard.SessionStatus
 import com.codegauge.dashboard.WindowTypes
+import com.codegauge.dashboard.dashboardPrimaryWindowOrDefault
 import com.codegauge.dashboard.formatProviderName
 import com.codegauge.dashboard.formatSessionSummary
+import com.codegauge.dashboard.primaryWindow
 import com.codegauge.dashboard.window
 import com.codegauge.pairing.PairingRecord
+import com.codegauge.settings.SettingsRepository
 import com.codegauge.ui.design.ClaudeAccent
 import com.codegauge.ui.design.CodexAccent
 import com.codegauge.ui.design.DashboardBackground
@@ -85,6 +88,7 @@ fun DashboardRoute(
     pairing: PairingRecord,
     repository: DashboardRepository,
     activityRepository: ActivityRepository,
+    settingsRepository: SettingsRepository,
     selectedProviderId: String?,
     onSelectedProviderIdChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
@@ -99,6 +103,9 @@ fun DashboardRoute(
     var isRefreshing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var detailEventError by remember { mutableStateOf<String?>(null) }
+    var primaryWindowType by remember(pairing.serverUrl, pairing.token) {
+        mutableStateOf(WindowTypes.FiveHours)
+    }
     var now by remember { mutableStateOf(Instant.now()) }
     val scope = rememberCoroutineScope()
 
@@ -133,7 +140,19 @@ fun DashboardRoute(
         }
     }
 
+    suspend fun loadDashboardPreference() {
+        try {
+            primaryWindowType = dashboardPrimaryWindowOrDefault(
+                settingsRepository.loadSettings(pairing).dashboardPrimaryWindow,
+            )
+        } catch (exception: Exception) {
+            Log.w(Tag, "Load dashboard preference failed, fallback to 5h", exception)
+            primaryWindowType = WindowTypes.FiveHours
+        }
+    }
+
     LaunchedEffect(pairing.serverUrl, pairing.token) {
+        loadDashboardPreference()
         loadSnapshot(fullScreenLoading = true)
     }
 
@@ -152,6 +171,7 @@ fun DashboardRoute(
         refreshing = isRefreshing,
         onRefresh = {
             scope.launch {
+                loadDashboardPreference()
                 loadSnapshot(fullScreenLoading = false)
                 selectedProviderId?.let { loadDetailEvents(it) }
             }
@@ -185,6 +205,7 @@ fun DashboardRoute(
                     provider = selectedProvider,
                     events = detailEvents,
                     eventError = detailEventError,
+                    primaryWindowType = primaryWindowType,
                     now = now,
                     onBack = { onSelectedProviderIdChange(null) },
                 )
@@ -207,6 +228,7 @@ fun DashboardRoute(
                 } else {
                     ProviderGaugeCards(
                         providers = currentSnapshot.providers,
+                        primaryWindowType = primaryWindowType,
                         now = now,
                         onProviderClick = { onSelectedProviderIdChange(it.id) },
                     )
@@ -266,6 +288,7 @@ private fun DashboardStatusStrip(
 @Composable
 private fun ProviderGaugeCards(
     providers: List<ProviderStatus>,
+    primaryWindowType: String,
     now: Instant,
     onProviderClick: (ProviderStatus) -> Unit,
 ) {
@@ -288,6 +311,7 @@ private fun ProviderGaugeCards(
         orderedProviders.forEach { provider ->
             ProviderGaugeCard(
                 provider = provider,
+                primaryWindowType = primaryWindowType,
                 now = now,
                 onClick = { onProviderClick(provider) },
             )
@@ -298,13 +322,14 @@ private fun ProviderGaugeCards(
 @Composable
 private fun ProviderGaugeCard(
     provider: ProviderStatus,
+    primaryWindowType: String,
     now: Instant,
     onClick: () -> Unit,
 ) {
     val visual = provider.visualSpec()
     val fiveHour = provider.window(WindowTypes.FiveHours)
     val weekly = provider.window(WindowTypes.Weekly)
-    val mainWindow = provider.mainWindow(fiveHour, weekly)
+    val mainWindow = provider.primaryWindow(primaryWindowType)
     val highlighted = mainWindow?.percentLeft?.let { it <= 25 } == true
 
     DesignPanel(
@@ -503,13 +528,14 @@ private fun ProviderDetailScreen(
     provider: ProviderStatus,
     events: List<ActivityEvent>,
     eventError: String?,
+    primaryWindowType: String,
     now: Instant,
     onBack: () -> Unit,
 ) {
     val visual = provider.visualSpec()
     val fiveHour = provider.window(WindowTypes.FiveHours)
     val weekly = provider.window(WindowTypes.Weekly)
-    val mainWindow = provider.mainWindow(fiveHour, weekly)
+    val mainWindow = provider.primaryWindow(primaryWindowType)
     val hasWindowData = provider.windows.any { window ->
         window.percentLeft != null || window.used != null || window.limit != null || window.resetsAt != null
     }
@@ -950,16 +976,6 @@ private fun DesignDivider() {
             .height(1.dp)
             .background(DashboardBorder),
     )
-}
-
-private fun ProviderStatus.mainWindow(
-    fiveHour: QuotaWindowStatus?,
-    weekly: QuotaWindowStatus?,
-): QuotaWindowStatus? {
-    return when (id.lowercase(Locale.US)) {
-        "codex" -> weekly?.takeIf { it.percentLeft != null } ?: fiveHour ?: weekly
-        else -> fiveHour?.takeIf { it.percentLeft != null } ?: weekly ?: fiveHour
-    }
 }
 
 private fun ProviderStatus.visualSpec(): ProviderVisual {

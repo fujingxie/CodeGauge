@@ -178,6 +178,7 @@ private object PreviewSettingsApi : SettingsApi {
             quotaResetNotifications = true,
             taskDoneNotifications = true,
             collectIntervalSeconds = 60,
+            dashboardPrimaryWindow = "5h",
         )
     }
 

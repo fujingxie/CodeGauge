@@ -9,6 +9,7 @@ data class AppSettings(
     val quotaResetNotifications: Boolean,
     val taskDoneNotifications: Boolean,
     val collectIntervalSeconds: Int,
+    val dashboardPrimaryWindow: String,
 )
 
 data class SettingsUpdate(
@@ -18,6 +19,7 @@ data class SettingsUpdate(
     val quotaResetNotifications: Boolean? = null,
     val taskDoneNotifications: Boolean? = null,
     val collectIntervalSeconds: Int? = null,
+    val dashboardPrimaryWindow: String? = null,
 ) {
     companion object {
         fun from(settings: AppSettings): SettingsUpdate {
@@ -28,6 +30,7 @@ data class SettingsUpdate(
                 quotaResetNotifications = settings.quotaResetNotifications,
                 taskDoneNotifications = settings.taskDoneNotifications,
                 collectIntervalSeconds = settings.collectIntervalSeconds,
+                dashboardPrimaryWindow = settings.dashboardPrimaryWindow,
             )
         }
     }

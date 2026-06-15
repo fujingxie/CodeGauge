@@ -37,8 +37,23 @@ fun ProviderStatus.window(windowType: String): QuotaWindowStatus? {
     return windows.firstOrNull { it.windowType == windowType }
 }
 
+fun ProviderStatus.primaryWindow(primaryWindowType: String): QuotaWindowStatus? {
+    val fiveHour = window(WindowTypes.FiveHours)
+    val weekly = window(WindowTypes.Weekly)
+    return when (dashboardPrimaryWindowOrDefault(primaryWindowType)) {
+        WindowTypes.Weekly -> weekly ?: fiveHour
+        else -> fiveHour ?: weekly
+    }
+}
+
+fun dashboardPrimaryWindowOrDefault(value: String): String {
+    return when (value) {
+        WindowTypes.Weekly -> WindowTypes.Weekly
+        else -> WindowTypes.FiveHours
+    }
+}
+
 object WindowTypes {
     const val FiveHours = "5h"
     const val Weekly = "weekly"
 }
-

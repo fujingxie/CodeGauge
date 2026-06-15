@@ -94,6 +94,7 @@ fun MainTabsRoute(
                     pairing = pairing,
                     repository = dashboardRepository,
                     activityRepository = activityRepository,
+                    settingsRepository = settingsRepository,
                     selectedProviderId = selectedDashboardProviderId,
                     onSelectedProviderIdChange = { selectedDashboardProviderId = it },
                 )

@@ -35,6 +35,7 @@ class SettingsRepositoryTest {
             quotaResetNotifications = true,
             taskDoneNotifications = false,
             collectIntervalSeconds = 120,
+            dashboardPrimaryWindow = "weekly",
         )
 
         val updated = repository.save(pairing, settings)
@@ -50,9 +51,10 @@ private class FakeSettingsApi : SettingsApi {
         notificationsEnabled = true,
         warningThreshold = 80,
         criticalThreshold = 95,
-        quotaResetNotifications = true,
-        taskDoneNotifications = true,
-        collectIntervalSeconds = 60,
+            quotaResetNotifications = true,
+            taskDoneNotifications = true,
+            collectIntervalSeconds = 60,
+            dashboardPrimaryWindow = "5h",
     )
     val devices = listOf(
         PairedDevice(
@@ -98,6 +100,7 @@ private class FakeSettingsApi : SettingsApi {
             quotaResetNotifications = update.quotaResetNotifications ?: settings.quotaResetNotifications,
             taskDoneNotifications = update.taskDoneNotifications ?: settings.taskDoneNotifications,
             collectIntervalSeconds = update.collectIntervalSeconds ?: settings.collectIntervalSeconds,
+            dashboardPrimaryWindow = update.dashboardPrimaryWindow ?: settings.dashboardPrimaryWindow,
         )
     }
 
