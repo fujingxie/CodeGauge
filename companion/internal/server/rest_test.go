@@ -206,9 +206,9 @@ func TestSettingsReadsDefaultsAndPersistsUpdates(t *testing.T) {
 	router := newTestRouterWithOptions(t, Options{
 		Version:    "test-version",
 		ServerName: "CodeGauge Test",
-		PairCode:  "123456",
-		Store:     db,
-		Now:       testNow,
+		PairCode:   "123456",
+		Store:      db,
+		Now:        testNow,
 		SettingsDefaults: SettingsDefaults{
 			CollectIntervalSeconds: 30,
 			WarningThreshold:       75,
@@ -398,6 +398,78 @@ func TestPairRejectsWrongCode(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPairRejectsExpiredPairCode(t *testing.T) {
+	now := testNow()
+	router := newTestRouterWithOptions(t, Options{
+		Version:             "test-version",
+		ServerName:          "CodeGauge Test",
+		PairCode:            "123456",
+		Store:               openServerTestStore(t),
+		Now:                 func() time.Time { return now },
+		PairCodeTTL:         time.Minute,
+		PairCodeMaxAttempts: 5,
+		TokenGenerator:      func() (string, error) { return "token-test", nil },
+		DeviceIDGenerator: func() (string, error) {
+			return "device-test", nil
+		},
+	})
+	now = now.Add(2 * time.Minute)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/pair",
+		bytes.NewBufferString(`{"pair_code":"123456","device_name":"Pixel"}`),
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPairLimitsWrongCodeAttempts(t *testing.T) {
+	router := newTestRouterWithOptions(t, Options{
+		Version:             "test-version",
+		ServerName:          "CodeGauge Test",
+		PairCode:            "123456",
+		Store:               openServerTestStore(t),
+		Now:                 testNow,
+		PairCodeTTL:         10 * time.Minute,
+		PairCodeMaxAttempts: 2,
+		TokenGenerator:      func() (string, error) { return "token-test", nil },
+		DeviceIDGenerator: func() (string, error) {
+			return "device-test", nil
+		},
+	})
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/pair",
+			bytes.NewBufferString(`{"pair_code":"000000","device_name":"Pixel"}`),
+		)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized && rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("wrong code attempt %d status = %d, want unauthorized or too many requests", i+1, rec.Code)
+		}
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/pair",
+		bytes.NewBufferString(`{"pair_code":"123456","device_name":"Pixel"}`),
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d after too many wrong attempts", rec.Code, http.StatusTooManyRequests)
 	}
 }
 

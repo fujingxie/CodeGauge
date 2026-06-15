@@ -110,11 +110,13 @@ func run() error {
 	httpServer := &http.Server{
 		Addr: cfg.Address(),
 		Handler: server.NewRouter(server.Options{
-			Version:    version,
-			ServerName: cfg.ServerName,
-			PairCode:   pairCode,
-			Store:      notifyingStore,
-			StreamHub:  streamHub,
+			Version:             version,
+			ServerName:          cfg.ServerName,
+			PairCode:            pairCode,
+			Store:               notifyingStore,
+			StreamHub:           streamHub,
+			PairCodeTTL:         time.Duration(cfg.PairCodeTTLSeconds) * time.Second,
+			PairCodeMaxAttempts: cfg.PairCodeMaxAttempts,
 			SettingsDefaults: server.SettingsDefaults{
 				CollectIntervalSeconds: cfg.CollectIntervalSeconds,
 				WarningThreshold:       cfg.WarningThreshold,

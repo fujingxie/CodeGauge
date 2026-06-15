@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -39,27 +40,34 @@ type Store interface {
 type TokenGenerator func() (string, error)
 
 type Options struct {
-	Version           string
-	ServerName        string
-	PairCode          string
-	Store             Store
-	Now               func() time.Time
-	StreamHub         *codestream.Hub
-	SettingsDefaults  SettingsDefaults
-	TokenGenerator    TokenGenerator
-	DeviceIDGenerator TokenGenerator
+	Version             string
+	ServerName          string
+	PairCode            string
+	Store               Store
+	Now                 func() time.Time
+	StreamHub           *codestream.Hub
+	SettingsDefaults    SettingsDefaults
+	PairCodeTTL         time.Duration
+	PairCodeMaxAttempts int
+	TokenGenerator      TokenGenerator
+	DeviceIDGenerator   TokenGenerator
 }
 
 type Router struct {
-	version           string
-	serverName        string
-	pairCode          string
-	store             Store
-	now               func() time.Time
-	streamHub         *codestream.Hub
-	settingsDefaults  SettingsDefaults
-	tokenGenerator    TokenGenerator
-	deviceIDGenerator TokenGenerator
+	version             string
+	serverName          string
+	pairCode            string
+	store               Store
+	now                 func() time.Time
+	streamHub           *codestream.Hub
+	settingsDefaults    SettingsDefaults
+	pairCodeIssuedAt    time.Time
+	pairCodeTTL         time.Duration
+	pairCodeMaxAttempts int
+	pairCodeMu          sync.Mutex
+	failedPairAttempts  int
+	tokenGenerator      TokenGenerator
+	deviceIDGenerator   TokenGenerator
 }
 
 type HealthResponse struct {
@@ -195,19 +203,28 @@ const (
 
 func NewRouter(options Options) http.Handler {
 	router := &Router{
-		version:           withDefault(options.Version, "dev"),
-		serverName:        withDefault(options.ServerName, "CodeGauge"),
-		pairCode:          options.PairCode,
-		store:             options.Store,
-		now:               options.Now,
-		streamHub:         options.StreamHub,
-		settingsDefaults:  settingsDefaults(options.SettingsDefaults),
-		tokenGenerator:    options.TokenGenerator,
-		deviceIDGenerator: options.DeviceIDGenerator,
+		version:             withDefault(options.Version, "dev"),
+		serverName:          withDefault(options.ServerName, "CodeGauge"),
+		pairCode:            options.PairCode,
+		store:               options.Store,
+		now:                 options.Now,
+		streamHub:           options.StreamHub,
+		settingsDefaults:    settingsDefaults(options.SettingsDefaults),
+		pairCodeTTL:         options.PairCodeTTL,
+		pairCodeMaxAttempts: options.PairCodeMaxAttempts,
+		tokenGenerator:      options.TokenGenerator,
+		deviceIDGenerator:   options.DeviceIDGenerator,
 	}
 	if router.now == nil {
 		router.now = time.Now
 	}
+	if router.pairCodeTTL <= 0 {
+		router.pairCodeTTL = 10 * time.Minute
+	}
+	if router.pairCodeMaxAttempts <= 0 {
+		router.pairCodeMaxAttempts = 5
+	}
+	router.pairCodeIssuedAt = router.now().UTC()
 	if router.streamHub == nil {
 		router.streamHub = codestream.NewHub()
 	}
@@ -269,8 +286,8 @@ func (r *Router) pair(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusBadRequest, "device_name is required")
 		return
 	}
-	if !secureEqual(body.PairCode, r.pairCode) {
-		writeError(w, http.StatusUnauthorized, "invalid pair code")
+	if status, message, ok := r.acceptPairCode(body.PairCode); !ok {
+		writeError(w, status, message)
 		return
 	}
 
@@ -304,6 +321,28 @@ func (r *Router) pair(w http.ResponseWriter, req *http.Request) {
 		Token:      token,
 		ServerName: r.serverName,
 	})
+}
+
+func (r *Router) acceptPairCode(pairCode string) (int, string, bool) {
+	r.pairCodeMu.Lock()
+	defer r.pairCodeMu.Unlock()
+
+	if r.failedPairAttempts >= r.pairCodeMaxAttempts {
+		return http.StatusTooManyRequests, "too many pair attempts", false
+	}
+	if r.pairCodeTTL > 0 && r.now().UTC().After(r.pairCodeIssuedAt.Add(r.pairCodeTTL)) {
+		return http.StatusUnauthorized, "invalid pair code", false
+	}
+	if !secureEqual(pairCode, r.pairCode) {
+		r.failedPairAttempts++
+		if r.failedPairAttempts >= r.pairCodeMaxAttempts {
+			return http.StatusTooManyRequests, "too many pair attempts", false
+		}
+		return http.StatusUnauthorized, "invalid pair code", false
+	}
+
+	r.failedPairAttempts = 0
+	return 0, "", true
 }
 
 func (r *Router) status(w http.ResponseWriter, req *http.Request) {

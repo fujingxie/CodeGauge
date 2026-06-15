@@ -18,6 +18,8 @@ type Config struct {
 	CodexPath              string
 	DatabasePath           string
 	PairCode               string
+	PairCodeTTLSeconds     int
+	PairCodeMaxAttempts    int
 	ServerName             string
 	TrayEnabled            bool
 }
@@ -34,6 +36,8 @@ func Load() (Config, error) {
 		CodexPath:              stringWithDefault("CODEGAUGE_CODEX_PATH", defaultCodexPath()),
 		DatabasePath:           stringWithDefault("CODEGAUGE_DB_PATH", defaultDatabasePath()),
 		PairCode:               os.Getenv("CODEGAUGE_PAIR_CODE"),
+		PairCodeTTLSeconds:     600,
+		PairCodeMaxAttempts:    5,
 		ServerName:             stringWithDefault("CODEGAUGE_SERVER_NAME", "CodeGauge Companion"),
 		TrayEnabled:            true,
 	}
@@ -54,6 +58,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := readBool("CODEGAUGE_TRAY_ENABLED", &cfg.TrayEnabled); err != nil {
+		return Config{}, err
+	}
+	if err := readInt("CODEGAUGE_PAIR_CODE_TTL_SECONDS", &cfg.PairCodeTTLSeconds); err != nil {
+		return Config{}, err
+	}
+	if err := readInt("CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS", &cfg.PairCodeMaxAttempts); err != nil {
 		return Config{}, err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -84,6 +94,12 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.PairCode != "" && !isSixDigitCode(cfg.PairCode) {
 		return fmt.Errorf("CODEGAUGE_PAIR_CODE must be 6 digits")
+	}
+	if cfg.PairCodeTTLSeconds < 1 {
+		return fmt.Errorf("CODEGAUGE_PAIR_CODE_TTL_SECONDS must be positive, got %d", cfg.PairCodeTTLSeconds)
+	}
+	if cfg.PairCodeMaxAttempts < 1 {
+		return fmt.Errorf("CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS must be positive, got %d", cfg.PairCodeMaxAttempts)
 	}
 
 	return nil

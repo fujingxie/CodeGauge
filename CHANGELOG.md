@@ -280,3 +280,13 @@
 - Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
 - Verified `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug`.
 - Verified on the connected phone with adb: task-done off suppresses `Stop` notifications, total notifications off suppresses business notifications while keeping the foreground service notification, lowered threshold triggers Codex weekly warning, and `logcat` shows no `AndroidRuntime` / `FATAL EXCEPTION`.
+
+## 2026-06-15 - Companion 安全硬化 T15
+
+- Added `sha256:` token hashing for `device_pairings`; new pairings no longer store bearer tokens in plaintext.
+- Added a store migration that hashes legacy plaintext tokens while preserving existing Android bearer-token authentication.
+- Changed bearer authentication to query `token_hash` instead of plaintext token.
+- Added pair-code TTL and wrong-attempt limiting with defaults of 600 seconds and 5 attempts, configurable via `CODEGAUGE_PAIR_CODE_TTL_SECONDS` and `CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS`.
+- Kept Claude hook loopback protection and covered pairing security behavior in server/store/config tests.
+- Verified `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` in `companion/`.
+- Verified with a temporary Companion smoke test: `/pair` token can access `/status`, SQLite stores only `sha256:` values, and wrong pair-code attempts return 429 after the limit.

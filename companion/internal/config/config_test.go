@@ -13,6 +13,8 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("CODEGAUGE_CODEX_PATH", "")
 	t.Setenv("CODEGAUGE_DB_PATH", "")
 	t.Setenv("CODEGAUGE_PAIR_CODE", "")
+	t.Setenv("CODEGAUGE_PAIR_CODE_TTL_SECONDS", "")
+	t.Setenv("CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS", "")
 	t.Setenv("CODEGAUGE_SERVER_NAME", "")
 	t.Setenv("CODEGAUGE_TRAY_ENABLED", "")
 
@@ -51,6 +53,12 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.PairCode != "" {
 		t.Fatalf("PairCode = %q, want empty default", cfg.PairCode)
 	}
+	if cfg.PairCodeTTLSeconds != 600 {
+		t.Fatalf("PairCodeTTLSeconds = %d, want 600", cfg.PairCodeTTLSeconds)
+	}
+	if cfg.PairCodeMaxAttempts != 5 {
+		t.Fatalf("PairCodeMaxAttempts = %d, want 5", cfg.PairCodeMaxAttempts)
+	}
 	if cfg.ServerName != "CodeGauge Companion" {
 		t.Fatalf("ServerName = %q, want CodeGauge Companion", cfg.ServerName)
 	}
@@ -70,6 +78,8 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("CODEGAUGE_CODEX_PATH", "/opt/bin/codex")
 	t.Setenv("CODEGAUGE_DB_PATH", "/tmp/codegauge.db")
 	t.Setenv("CODEGAUGE_PAIR_CODE", "481920")
+	t.Setenv("CODEGAUGE_PAIR_CODE_TTL_SECONDS", "120")
+	t.Setenv("CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS", "3")
 	t.Setenv("CODEGAUGE_SERVER_NAME", "Dev Mac")
 	t.Setenv("CODEGAUGE_TRAY_ENABLED", "false")
 
@@ -108,6 +118,12 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	if cfg.PairCode != "481920" {
 		t.Fatalf("PairCode = %q, want 481920", cfg.PairCode)
 	}
+	if cfg.PairCodeTTLSeconds != 120 {
+		t.Fatalf("PairCodeTTLSeconds = %d, want 120", cfg.PairCodeTTLSeconds)
+	}
+	if cfg.PairCodeMaxAttempts != 3 {
+		t.Fatalf("PairCodeMaxAttempts = %d, want 3", cfg.PairCodeMaxAttempts)
+	}
 	if cfg.ServerName != "Dev Mac" {
 		t.Fatalf("ServerName = %q, want Dev Mac", cfg.ServerName)
 	}
@@ -132,6 +148,26 @@ func TestLoadRejectsInvalidPairCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("Load returned nil error for invalid pair code")
 	}
+}
+
+func TestLoadRejectsInvalidPairSecuritySettings(t *testing.T) {
+	t.Run("ttl", func(t *testing.T) {
+		t.Setenv("CODEGAUGE_PAIR_CODE_TTL_SECONDS", "0")
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load returned nil error for invalid pair code ttl")
+		}
+	})
+
+	t.Run("attempts", func(t *testing.T) {
+		t.Setenv("CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS", "0")
+
+		_, err := Load()
+		if err == nil {
+			t.Fatal("Load returned nil error for invalid pair code attempts")
+		}
+	})
 }
 
 func TestLoadRejectsInvalidTrayEnabled(t *testing.T) {

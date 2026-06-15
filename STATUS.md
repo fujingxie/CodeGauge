@@ -45,6 +45,8 @@ Last updated: 2026-06-15
 - 设置运行时生效: Companion 已按 DB 中 `collect_interval_seconds` 动态调整 Collector 采集间隔，并在设置保存后通过变更信号尽快唤醒下一轮采集。
 - 设置运行时生效: WebSocket alert 已按 DB 中 warning/critical 阈值实时判断，不再只依赖启动配置。
 - 设置运行时生效: Android 前台监听服务已按 `/settings` 控制业务通知；总通知开关、任务完成通知和额度恢复通知均会在 stream 事件到达时读取最新设置后生效，前台常驻通知保留。
+- T15: Companion 已实现配对 token hash 存储，新配对不再落库明文 token；旧明文 token 会在数据库迁移时回填为 `sha256:` hash，原 Android bearer token 仍可继续鉴权。
+- T15: Companion 已实现配对码 TTL 和错误次数限制，默认配对码 10 分钟有效、连续 5 次错误后拒绝继续配对；可通过 `CODEGAUGE_PAIR_CODE_TTL_SECONDS` 和 `CODEGAUGE_PAIR_CODE_MAX_ATTEMPTS` 调整。
 
 ## 进行中 / 待处理项
 
@@ -108,6 +110,8 @@ Last updated: 2026-06-15
 - 设置运行时生效: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过，覆盖动态采集间隔、DB 阈值读取、设置变更信号和上一条 quota 使用率未知时不重复 alert。
 - 设置运行时生效: `./gradlew :android:app:testDebugUnitTest :android:app:assembleDebug` 通过，覆盖通知策略开关过滤。
 - 设置运行时生效: adb 真机复测通过，安装 debug APK 后验证关闭任务完成通知时 `Stop` hook 不产生“任务已完成”通知；关闭总通知时 `Notification` hook 不产生业务通知且保留前台常驻通知；调低阈值后 Codex weekly 可触发新的额度预警；`logcat` 未发现 `AndroidRuntime` / `FATAL EXCEPTION`。
+- T15: `GOCACHE=/private/tmp/codegauge-go-cache go test ./...` 在 `companion/` 通过，覆盖 token hash 存储、旧 token 迁移、配对码过期和错误次数限制。
+- T15: 临时 Companion 接口 smoke 通过：`/pair` 返回的明文 token 可访问 `/status`，SQLite `device_pairings.token` 和 `token_hash` 均为 `sha256:` hash 且不等于明文；错误配对码第 5 次起返回 429。
 
 ## 已知问题和技术债务
 
@@ -118,8 +122,8 @@ Last updated: 2026-06-15
 - Codex shell 的 PATH 可能看不到 nvm/.local 安装目录；运行 Companion 时如找不到 `ccusage`，需要设置 `CODEGAUGE_CCUSAGE_PATH` 为 `command -v ccusage` 的结果。
 - Codex 精确源默认优先使用 `/Applications/Codex.app/Contents/Resources/codex`；如安装位置不同，可设置 `CODEGAUGE_CODEX_PATH`。
 - `ccusage 20.0.6` 不提供 Codex 剩余额度百分比和 reset time；T3 按方案保持这些字段为 `null`，不编造数值。
-- T4 配对码目前由环境变量指定或启动时生成并打印；TTL、尝试次数限制、托盘展示留到 T7/安全硬化。
-- T4 token 当前按数据模型存储在 `device_pairings.token`；后续公开分发前建议改为 token hash 存储。
+- T15 token hash 迁移保留旧 `device_pairings.token` 列做兼容，但新写入和迁移后的值均为 `sha256:` hash；鉴权按 hash 查询 `token_hash`。
+- T15 配对码 TTL 到期后需重启 Companion 或后续产品化刷新配对码才能再次配对；当前托盘仍只展示启动时配对码，不显示剩余有效时间。
 - T5 Hook endpoint 当前挂在同一个 HTTP server 上，但只接受 loopback 请求；如果后续主服务需要绑定公网/复杂网卡，应考虑拆分为独立本地 listener。
 - T5 Watcher 通过进程名推断活动状态，无法提供项目路径；真实 Claude hooks 的 session 会提供 `cwd`，优先用于精确展示。
 - T6 WebSocket 当前采用内存 Hub；服务重启后客户端需重连并通过 `/status` 拉取新快照。
@@ -164,6 +168,7 @@ Last updated: 2026-06-15
 - T14 精确源被设计为 Collector 的可选 `PreciseSource`，在 `ccusage` 采集之后运行；精确源只覆盖百分比、reset time 和 source，缺失的 used/limit 会从已有窗口合并，保证回退数据仍完整。
 - T14 Codex 精确源通过 `codex app-server --stdio` 调用 `account/rateLimits/read`，不读取或输出本地 token，不直接拼接私有 HTTP endpoint。
 - 设置页前置 REST API 复用现有 Bearer 鉴权；设备列表响应只返回设备元数据，不返回 `device_pairings.token`。
+- Bearer token 不再以明文保存到 Companion SQLite；Store 会在打开旧库时将 legacy 明文 token 回填为 `sha256:` hash，避免 Android 端重新配对。
 - 设置项继续落在 SQLite `settings` key/value 表；REST 层负责转换成类型化 JSON，避免新增迁移和过早设计复杂设置表。
 - Android 设置页沿用现有 OkHttp + `org.json` 网络层，不额外引入 serialization/Ktor；保存时 PATCH 当前完整设置，减少字段级脏状态复杂度。
 - Companion 设置热更新通过 `NotifyingStore.SetSetting` 发出轻量变更信号；Collector 在信号到达时提前唤醒并重新读取 DB 中的采集间隔。

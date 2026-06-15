@@ -1,10 +1,13 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -53,8 +56,98 @@ func (s *Store) migrate() error {
 	if _, err := s.db.Exec(string(migrations)); err != nil {
 		return fmt.Errorf("apply migrations: %w", err)
 	}
+	if err := s.migrateDevicePairingTokenHash(); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (s *Store) migrateDevicePairingTokenHash() error {
+	hasTokenHash, err := s.hasColumn("device_pairings", "token_hash")
+	if err != nil {
+		return err
+	}
+	if !hasTokenHash {
+		if _, err := s.db.Exec(`ALTER TABLE device_pairings ADD COLUMN token_hash TEXT`); err != nil {
+			return fmt.Errorf("add device_pairings token_hash column: %w", err)
+		}
+	}
+	if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_device_pairings_token_hash ON device_pairings (token_hash)`); err != nil {
+		return fmt.Errorf("create device pairings token hash index: %w", err)
+	}
+
+	rows, err := s.db.Query(`SELECT device_id, token, COALESCE(token_hash, '') FROM device_pairings`)
+	if err != nil {
+		return fmt.Errorf("list device pairing tokens for migration: %w", err)
+	}
+	defer rows.Close()
+
+	type tokenMigration struct {
+		deviceID  string
+		tokenHash string
+	}
+	var migrations []tokenMigration
+	for rows.Next() {
+		var deviceID string
+		var token string
+		var tokenHash string
+		if err := rows.Scan(&deviceID, &token, &tokenHash); err != nil {
+			return fmt.Errorf("scan device pairing token for migration: %w", err)
+		}
+		hash := tokenHash
+		if hash == "" {
+			hash = HashToken(token)
+		}
+		if !isStoredTokenHash(token) {
+			migrations = append(migrations, tokenMigration{deviceID: deviceID, tokenHash: hash})
+		} else if tokenHash == "" {
+			migrations = append(migrations, tokenMigration{deviceID: deviceID, tokenHash: token})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate device pairing tokens for migration: %w", err)
+	}
+
+	for _, migration := range migrations {
+		if _, err := s.db.Exec(
+			`UPDATE device_pairings SET token = ?, token_hash = ? WHERE device_id = ?`,
+			migration.tokenHash,
+			migration.tokenHash,
+			migration.deviceID,
+		); err != nil {
+			return fmt.Errorf("migrate device pairing token %q: %w", migration.deviceID, err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) hasColumn(table string, column string) (bool, error) {
+	rows, err := s.db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return false, fmt.Errorf("read table info %q: %w", table, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notNull int
+		var defaultValue any
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return false, fmt.Errorf("scan table info %q: %w", table, err)
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("iterate table info %q: %w", table, err)
+	}
+	return false, nil
 }
 
 func (s *Store) UpsertProvider(provider Provider) error {
@@ -301,17 +394,20 @@ func (s *Store) ListEvents(limit int) ([]Event, error) {
 }
 
 func (s *Store) UpsertDevicePairing(device DevicePairing) error {
+	tokenHash := HashToken(device.Token)
 	_, err := s.db.Exec(
-		`INSERT INTO device_pairings (device_id, name, token, paired_at, last_seen_at)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO device_pairings (device_id, name, token, token_hash, paired_at, last_seen_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(device_id) DO UPDATE SET
 		   name = excluded.name,
 		   token = excluded.token,
+		   token_hash = excluded.token_hash,
 		   paired_at = excluded.paired_at,
 		   last_seen_at = excluded.last_seen_at`,
 		device.DeviceID,
 		device.Name,
-		device.Token,
+		tokenHash,
+		tokenHash,
 		formatTime(device.PairedAt),
 		formatTime(device.LastSeenAt),
 	)
@@ -365,11 +461,12 @@ func (s *Store) ListDevicePairings() ([]DevicePairing, error) {
 }
 
 func (s *Store) GetDevicePairingByToken(token string) (DevicePairing, error) {
+	tokenHash := HashToken(token)
 	row := s.db.QueryRow(
 		`SELECT device_id, name, token, paired_at, last_seen_at
 		 FROM device_pairings
-		 WHERE token = ?`,
-		token,
+		 WHERE token_hash = ?`,
+		tokenHash,
 	)
 
 	device, err := scanDevicePairing(row)
@@ -379,6 +476,20 @@ func (s *Store) GetDevicePairingByToken(token string) (DevicePairing, error) {
 
 	return device, nil
 }
+
+func HashToken(token string) string {
+	if isStoredTokenHash(token) {
+		return token
+	}
+	sum := sha256.Sum256([]byte(token))
+	return tokenHashPrefix + hex.EncodeToString(sum[:])
+}
+
+func isStoredTokenHash(token string) bool {
+	return strings.HasPrefix(token, tokenHashPrefix)
+}
+
+const tokenHashPrefix = "sha256:"
 
 func (s *Store) SetSetting(key string, value string) error {
 	_, err := s.db.Exec(

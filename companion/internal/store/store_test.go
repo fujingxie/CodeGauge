@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -140,8 +141,11 @@ func TestStorePersistsEntitiesAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDevicePairing: %v", err)
 	}
-	if device.Name != "Pixel" || device.Token != "token-1" {
-		t.Fatalf("device = %+v, want Pixel token-1", device)
+	if device.Name != "Pixel" {
+		t.Fatalf("device.Name = %q, want Pixel", device.Name)
+	}
+	if device.Token == "token-1" || device.Token == "" {
+		t.Fatalf("device.Token = %q, want stored hash", device.Token)
 	}
 
 	setting, err := reopened.GetSetting("collect_interval_seconds")
@@ -293,6 +297,51 @@ func TestGetDevicePairingByToken(t *testing.T) {
 	}
 	if device.DeviceID != "phone-1" || device.Name != "Pixel" {
 		t.Fatalf("device = %+v, want phone-1 Pixel", device)
+	}
+	if device.Token == "token-1" || device.Token == "" {
+		t.Fatalf("device.Token = %q, want stored hash", device.Token)
+	}
+}
+
+func TestOpenMigratesLegacyPlaintextDeviceTokens(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE device_pairings (
+		  device_id TEXT PRIMARY KEY,
+		  name TEXT NOT NULL,
+		  token TEXT NOT NULL,
+		  paired_at TEXT NOT NULL,
+		  last_seen_at TEXT NOT NULL
+		);
+		CREATE UNIQUE INDEX idx_device_pairings_token ON device_pairings (token);
+		INSERT INTO device_pairings (device_id, name, token, paired_at, last_seen_at)
+		VALUES ('phone-1', 'Pixel', 'legacy-token', '2026-06-05T12:00:00Z', '2026-06-05T12:00:00Z');
+	`); err != nil {
+		t.Fatalf("seed legacy db: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy db: %v", err)
+	}
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open migrated db: %v", err)
+	}
+	defer db.Close()
+
+	device, err := db.GetDevicePairingByToken("legacy-token")
+	if err != nil {
+		t.Fatalf("GetDevicePairingByToken legacy token: %v", err)
+	}
+	if device.DeviceID != "phone-1" {
+		t.Fatalf("DeviceID = %q, want phone-1", device.DeviceID)
+	}
+	if device.Token == "legacy-token" || device.Token == "" {
+		t.Fatalf("device.Token = %q, want stored hash", device.Token)
 	}
 }
 
