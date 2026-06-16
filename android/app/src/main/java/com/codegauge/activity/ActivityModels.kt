@@ -21,6 +21,8 @@ data class StreamAlert(
 )
 
 sealed interface ActivityStreamMessage {
+    data object Quota : ActivityStreamMessage
+
     data class Event(val event: ActivityEvent) : ActivityStreamMessage
 
     data class Session(val session: SessionStatus) : ActivityStreamMessage

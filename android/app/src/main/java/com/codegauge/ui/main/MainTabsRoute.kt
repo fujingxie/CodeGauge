@@ -95,6 +95,7 @@ fun MainTabsRoute(
                     repository = dashboardRepository,
                     activityRepository = activityRepository,
                     settingsRepository = settingsRepository,
+                    streamClient = streamClient,
                     selectedProviderId = selectedDashboardProviderId,
                     onSelectedProviderIdChange = { selectedDashboardProviderId = it },
                 )

@@ -140,6 +140,7 @@ fun ActivityRoute(
                             sessions = mergeSession(sessions, message.session)
                             errorMessage = null
                         }
+                        ActivityStreamMessage.Quota,
                         is ActivityStreamMessage.Alert -> Unit
                         ActivityStreamMessage.Ignored -> Unit
                     }

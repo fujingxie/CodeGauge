@@ -1,5 +1,6 @@
 package com.codegauge.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -62,14 +63,29 @@ class CodeGaugeWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         CodeGaugeWidgetScheduler.schedule(context)
-        CoroutineScope(Dispatchers.IO).launch {
-            CodeGaugeWidgetUpdater.refresh(context)
-        }
+        refresh(context)
+    }
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        CodeGaugeWidgetScheduler.schedule(context)
+        CodeGaugeWidgetScheduler.refreshSoon(context)
+        refresh(context)
     }
 
     override fun onDisabled(context: Context) {
         CodeGaugeWidgetScheduler.cancel(context)
         super.onDisabled(context)
+    }
+
+    private fun refresh(context: Context) {
+        CoroutineScope(Dispatchers.IO).launch {
+            CodeGaugeWidgetUpdater.refresh(context)
+        }
     }
 }
 

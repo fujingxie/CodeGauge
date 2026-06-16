@@ -86,6 +86,24 @@ class ActivityJsonParserTest {
     }
 
     @Test
+    fun parsesStreamQuotaUpdate() {
+        val message = ActivityJsonParser.parseStreamMessage(
+            """
+            {
+              "event_type": "quota_update",
+              "data": {
+                "provider_id": "codex",
+                "window_type": "5h",
+                "percent_left": 86
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(ActivityStreamMessage.Quota, message)
+    }
+
+    @Test
     fun parsesStreamAlert() {
         val message = ActivityJsonParser.parseStreamMessage(
             """

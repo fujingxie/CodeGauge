@@ -45,6 +45,7 @@ internal val DashboardText = Color(0xFFE9EEF7)
 internal val ClaudeAccent = Color(0xFFE97857)
 internal val CodexAccent = Color(0xFF17C398)
 internal val GaugeWarning = Color(0xFFE8C24A)
+internal val WeeklyRingAccent = Color(0xFF79A7FF)
 internal val GoodGreen = Color(0xFF38D06D)
 internal val WarningAmber = Color(0xFFE8C24A)
 
@@ -134,8 +135,10 @@ internal fun DesignDot(
 
 @Composable
 internal fun QuotaRingGauge(
-    percentLeft: Int?,
+    centerPercentLeft: Int?,
     windowLabel: String,
+    outerPercentLeft: Int? = centerPercentLeft,
+    innerPercentLeft: Int? = null,
     accent: Color,
     modifier: Modifier = Modifier,
     gaugeSize: Dp = 126.dp,
@@ -154,28 +157,38 @@ internal fun QuotaRingGauge(
             drawRingTrack(outerRadius, stroke)
             drawRingTrack(innerRadius, stroke)
 
-            if (percentLeft == null) {
+            if (outerPercentLeft == null && innerPercentLeft == null) {
                 drawUnavailableTicks(outerRadius, stroke)
                 drawUnavailableTicks(innerRadius, stroke)
             } else {
-                val percent = percentLeft.coerceIn(0, 100) / 100f
-                val outerSweep = 360f * percent
-                val innerSweep = (outerSweep * 0.72f + 28f).coerceAtMost(300f)
+                val outerValue = outerPercentLeft?.coerceIn(0, 100)
+                val innerValue = innerPercentLeft?.coerceIn(0, 100)
 
-                drawRingGlow(outerRadius, stroke, accent, outerSweep)
-                drawRingArc(outerRadius, stroke, accent, -90f, outerSweep)
+                if (outerValue == null) {
+                    drawUnavailableTicks(outerRadius, stroke)
+                } else {
+                    val outerSweep = 360f * (outerValue / 100f)
+                    val outerAccent = if (outerValue <= 25) GaugeWarning else accent
+                    drawRingGlow(outerRadius, stroke, outerAccent, outerSweep)
+                    drawRingArc(outerRadius, stroke, outerAccent, -90f, outerSweep)
+                }
 
-                val innerAccent = if (percentLeft <= 25) GaugeWarning else accent
-                drawRingGlow(innerRadius, stroke, innerAccent, innerSweep)
-                drawRingArc(innerRadius, stroke, innerAccent, -90f, innerSweep)
+                if (innerValue == null) {
+                    drawUnavailableTicks(innerRadius, stroke)
+                } else {
+                    val innerSweep = 360f * (innerValue / 100f)
+                    val innerAccent = if (innerValue <= 25) GaugeWarning else WeeklyRingAccent
+                    drawRingGlow(innerRadius, stroke, innerAccent, innerSweep)
+                    drawRingArc(innerRadius, stroke, innerAccent, -90f, innerSweep)
+                }
             }
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = percentLeft?.coerceIn(0, 100)?.toString() ?: "-",
-                    color = percentLeft?.let { if (it <= 25) GaugeWarning else DashboardText } ?: DashboardMuted,
+                    text = centerPercentLeft?.coerceIn(0, 100)?.toString() ?: "-",
+                    color = centerPercentLeft?.let { if (it <= 25) GaugeWarning else DashboardText } ?: DashboardMuted,
                     fontSize = valueFontSize,
                     lineHeight = valueFontSize,
                     fontWeight = FontWeight.Bold,
@@ -183,14 +196,14 @@ internal fun QuotaRingGauge(
                 )
                 Text(
                     modifier = Modifier.padding(bottom = 5.dp, start = 2.dp),
-                    text = if (percentLeft == null) "" else "%",
+                    text = if (centerPercentLeft == null) "" else "%",
                     color = DashboardText.copy(alpha = 0.90f),
                     fontSize = percentFontSize,
                     fontWeight = FontWeight.Bold,
                 )
             }
             Text(
-                text = if (percentLeft == null) "数据不可用" else "$windowLabel · 剩余",
+                text = if (centerPercentLeft == null) "数据不可用" else "$windowLabel · 剩余",
                 color = DashboardMuted,
                 fontSize = labelFontSize,
                 lineHeight = 13.sp,

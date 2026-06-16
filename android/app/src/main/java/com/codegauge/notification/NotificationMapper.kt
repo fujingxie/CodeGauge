@@ -24,6 +24,7 @@ object NotificationMapper {
         return when (message) {
             is ActivityStreamMessage.Alert -> mapAlert(message.alert)
             is ActivityStreamMessage.Session -> mapSession(message.session)
+            ActivityStreamMessage.Quota,
             is ActivityStreamMessage.Event,
             ActivityStreamMessage.Ignored,
             -> null

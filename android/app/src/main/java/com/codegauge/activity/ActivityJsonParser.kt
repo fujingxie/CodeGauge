@@ -25,6 +25,7 @@ object ActivityJsonParser {
             val root = JSONObject(body)
             val data = root.optJSONObject("data") ?: return ActivityStreamMessage.Ignored
             return when (root.optString("event_type")) {
+                "quota_update" -> ActivityStreamMessage.Quota
                 "event_update" -> ActivityStreamMessage.Event(parseEvent(data))
                 "session_update" -> ActivityStreamMessage.Session(parseSession(data))
                 "alert" -> ActivityStreamMessage.Alert(parseAlert(data))

@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.codegauge.activity.ActivityStreamClient
+import com.codegauge.activity.ActivityStreamMessage
 import com.codegauge.activity.ActivityEvent
 import com.codegauge.activity.ActivityRepository
 import com.codegauge.activity.formatEventAge
@@ -73,6 +76,7 @@ import com.codegauge.ui.design.DesignPill
 import com.codegauge.ui.design.GoodGreen
 import com.codegauge.ui.design.QuotaRingGauge
 import com.codegauge.ui.design.WarningAmber
+import com.codegauge.ui.design.WeeklyRingAccent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -80,6 +84,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterialApi::class)
@@ -89,6 +94,7 @@ fun DashboardRoute(
     repository: DashboardRepository,
     activityRepository: ActivityRepository,
     settingsRepository: SettingsRepository,
+    streamClient: ActivityStreamClient,
     selectedProviderId: String?,
     onSelectedProviderIdChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
@@ -107,12 +113,18 @@ fun DashboardRoute(
         mutableStateOf(WindowTypes.FiveHours)
     }
     var now by remember { mutableStateOf(Instant.now()) }
+    var streamRefreshTick by remember(pairing.serverUrl, pairing.token) {
+        mutableStateOf(0)
+    }
     val scope = rememberCoroutineScope()
 
-    suspend fun loadSnapshot(fullScreenLoading: Boolean) {
+    suspend fun loadSnapshot(
+        fullScreenLoading: Boolean,
+        showRefreshIndicator: Boolean = !fullScreenLoading,
+    ) {
         if (fullScreenLoading) {
             isLoading = true
-        } else {
+        } else if (showRefreshIndicator) {
             isRefreshing = true
         }
 
@@ -124,7 +136,9 @@ fun DashboardRoute(
             errorMessage = exception.message ?: "仪表盘加载失败"
         } finally {
             isLoading = false
-            isRefreshing = false
+            if (showRefreshIndicator) {
+                isRefreshing = false
+            }
         }
     }
 
@@ -157,6 +171,23 @@ fun DashboardRoute(
     }
 
     LaunchedEffect(pairing.serverUrl, pairing.token, selectedProviderId) {
+        while (true) {
+            delay(DashboardAutoRefreshMs)
+            loadSnapshot(fullScreenLoading = false, showRefreshIndicator = false)
+            selectedProviderId?.let { loadDetailEvents(it) }
+        }
+    }
+
+    LaunchedEffect(pairing.serverUrl, pairing.token, selectedProviderId) {
+        selectedProviderId?.let { loadDetailEvents(it) }
+    }
+
+    LaunchedEffect(streamRefreshTick, selectedProviderId) {
+        if (streamRefreshTick == 0) {
+            return@LaunchedEffect
+        }
+        delay(StreamRefreshDebounceMs)
+        loadSnapshot(fullScreenLoading = false, showRefreshIndicator = false)
         selectedProviderId?.let { loadDetailEvents(it) }
     }
 
@@ -164,6 +195,30 @@ fun DashboardRoute(
         while (true) {
             now = Instant.now()
             delay(1_000)
+        }
+    }
+
+    DisposableEffect(pairing.serverUrl, pairing.token, streamClient) {
+        val disposed = AtomicBoolean(false)
+        val connection = streamClient.connect(
+            pairing = pairing,
+            onMessage = { message ->
+                if (message.shouldRefreshDashboard()) {
+                    scope.launch {
+                        streamRefreshTick += 1
+                    }
+                }
+            },
+            onFailure = { error ->
+                if (!disposed.get()) {
+                    Log.w(Tag, "Dashboard stream disconnected; polling fallback remains active", error)
+                }
+            },
+        )
+
+        onDispose {
+            disposed.set(true)
+            connection.close()
         }
     }
 
@@ -330,7 +385,7 @@ private fun ProviderGaugeCard(
     val fiveHour = provider.window(WindowTypes.FiveHours)
     val weekly = provider.window(WindowTypes.Weekly)
     val mainWindow = provider.primaryWindow(primaryWindowType)
-    val highlighted = mainWindow?.percentLeft?.let { it <= 25 } == true
+    val highlighted = listOfNotNull(fiveHour?.percentLeft, weekly?.percentLeft).any { it <= 25 }
 
     DesignPanel(
         modifier = Modifier.clickable(onClick = onClick),
@@ -344,8 +399,10 @@ private fun ProviderGaugeCard(
 
         QuotaRingGauge(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            percentLeft = mainWindow?.percentLeft,
+            centerPercentLeft = mainWindow?.percentLeft,
             windowLabel = mainWindow?.windowType.windowShortLabel(),
+            outerPercentLeft = fiveHour?.percentLeft,
+            innerPercentLeft = weekly?.percentLeft,
             accent = visual.accent,
         )
 
@@ -365,11 +422,13 @@ private fun ProviderGaugeCard(
             WindowMetric(
                 label = "5H",
                 window = fiveHour,
+                indicatorColor = visual.accent,
             )
             WindowMetric(
                 label = "周",
                 window = weekly,
                 alignEnd = true,
+                indicatorColor = WeeklyRingAccent,
             )
         }
     }
@@ -451,16 +510,30 @@ private fun WindowMetric(
     label: String,
     window: QuotaWindowStatus?,
     alignEnd: Boolean = false,
+    indicatorColor: Color? = null,
 ) {
     Column(
         horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = DashboardMuted,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (indicatorColor != null) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(indicatorColor),
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = DashboardMuted,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Text(
             text = formatWindowUsage(window),
             style = MaterialTheme.typography.bodyMedium,
@@ -549,8 +622,10 @@ private fun ProviderDetailScreen(
 
         QuotaRingGauge(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            percentLeft = mainWindow?.percentLeft,
+            centerPercentLeft = mainWindow?.percentLeft,
             windowLabel = mainWindow?.windowType.windowShortLabel(),
+            outerPercentLeft = fiveHour?.percentLeft,
+            innerPercentLeft = weekly?.percentLeft,
             accent = visual.accent,
             gaugeSize = 224.dp,
             valueFontSize = 48.sp,
@@ -918,7 +993,7 @@ private fun LoadingGaugeCard(
 
         QuotaRingGauge(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            percentLeft = null,
+            centerPercentLeft = null,
             windowLabel = "5H",
             accent = accent,
         )
@@ -1139,3 +1214,16 @@ private val DetailDateFormatter = DateTimeFormatter
     .withZone(ZoneId.systemDefault())
 
 private const val Tag = "CodeGaugeDashboard"
+private const val DashboardAutoRefreshMs = 30_000L
+private const val StreamRefreshDebounceMs = 500L
+
+private fun ActivityStreamMessage.shouldRefreshDashboard(): Boolean {
+    return when (this) {
+        ActivityStreamMessage.Quota,
+        is ActivityStreamMessage.Event,
+        is ActivityStreamMessage.Session,
+        is ActivityStreamMessage.Alert,
+        -> true
+        ActivityStreamMessage.Ignored -> false
+    }
+}
